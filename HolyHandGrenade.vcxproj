@@ -194,6 +194,7 @@
     <ClInclude Include="greendragon.h" />
     <ClInclude Include="lights.h" />
     <ClInclude Include="mesh.h" />
+    <ClInclude Include="model.h" />
     <ClInclude Include="resource_loading.h" />
     <ClInclude Include="scene.h" />
     <ClInclude Include="vertex.h" />

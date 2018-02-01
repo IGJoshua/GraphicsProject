@@ -7,7 +7,7 @@
 #include "lights.h"
 #include "mesh.h"
 
-struct camera
+struct SHADER_CAMERA
 {
 	XMFLOAT4X4 viewMatrix;
 	XMFLOAT4X4 projectionMatrix;

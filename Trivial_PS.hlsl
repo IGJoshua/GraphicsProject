@@ -30,12 +30,7 @@ texture2D albedoMap : register( t0 );
 texture2D normalMap : register( t1 );
 texture2D specularMap : register( t2 );
 
-SamplerState MeshTextureSampler
-{
-	Filter = D3D11_FILTER_ANISOTROPIC;
-	AddressU = Wrap;
-	AddressV = Wrap;
-};
+SamplerState MeshTextureSampler : register( s0 );
 
 float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : NORMAL, float2 uvFromRasterizer : TEXCOORD ) : SV_TARGET
 {
@@ -43,7 +38,8 @@ float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : N
 	returnColor = colorFromRasterizer;
 
 	// Calculate the texture color for the pixel coord
-	//returnColor = returnColor + albedoMap.Sample(MeshTextureSampler, uvFromRasterizer);
+	float4 albedoColor = albedoMap.Sample(MeshTextureSampler, uvFromRasterizer);
+	returnColor = lerp(returnColor, albedoColor, albedoColor.w);
 
 	// Calculate light for the pixel coord
 

@@ -1,6 +1,7 @@
 * DONE Draw procedurally-generated 3d line-mesh (Probably a spiral)
   CLOSED: [2018-02-01 Thu 00:17]
-* TODO texture geometry
+* DONE texture geometry
+  CLOSED: [2018-02-01 Thu 16:55]
 * TODO Shader that changes how things appear based on position and time?
 * TODO Generate an OBJ with the tool to render a complex mesh
 * TODO Directional light to complex mesh

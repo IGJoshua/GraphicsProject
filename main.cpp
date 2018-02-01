@@ -27,6 +27,30 @@ using namespace DirectX;
 //************ SIMPLE WINDOWS APP CLASS **********************
 //************************************************************
 
+union color
+{
+	unsigned int cint;
+	struct
+	{
+		unsigned char B;
+		unsigned char G;
+		unsigned char R;
+		unsigned char A;
+	};
+};
+
+unsigned int colorTGAConversion(unsigned int initCol)
+{
+	color ret;
+	color tga;
+	tga.cint = initCol;
+	ret.A = tga.B;
+	ret.R = tga.G;
+	ret.G = tga.R;
+	ret.B = tga.A;
+	return ret.cint;
+}
+
 struct D3D11Window
 {
 	HINSTANCE application;
@@ -40,10 +64,14 @@ struct D3D11Window
 	ID3D11Device *device;
 	ID3D11DeviceContext *context;
 	ID3D11RenderTargetView *renderTargetView;
+
 	ID3D11Texture2D *depthStencil;
 	ID3D11DepthStencilState *depthStencilState;
 	ID3D11DepthStencilView *depthStencilView;
-	ID3D11ShaderResourceView *shaderResourceView;
+
+	ID3D11Texture2D *dragonTexture;
+	ID3D11SamplerState *dragonSamplerState;
+	ID3D11ShaderResourceView *dragonResourceView;
 
 	IDXGISwapChain *swapchain;
 	ID3D11Resource * pBB;
@@ -169,11 +197,57 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 
 	wnd.device->CreateDepthStencilView(wnd.depthStencil, &dsvDesc, &wnd.depthStencilView);
 
+	D3D11_SAMPLER_DESC sampDesc;
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	sampDesc.MinLOD = 0;
+	sampDesc.MaxLOD = greendragon_numlevels;
+
+	wnd.device->CreateSamplerState(&sampDesc, &wnd.dragonSamplerState);
+
+	// Load the cube texture
+	D3D11_TEXTURE2D_DESC texDesc;
+	ZeroMemory(&texDesc, sizeof(texDesc));
+	texDesc.Width = greendragon_width;
+	texDesc.Height = greendragon_height;
+	texDesc.MipLevels = greendragon_numlevels;
+	texDesc.ArraySize = 1;
+	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+	// Convert the texture
+	unsigned int *greendragon_converted = new unsigned int[greendragon_numpixels];
+	for (unsigned int i = 0; i < greendragon_numpixels; ++i)
+	{
+		greendragon_converted[i] = colorTGAConversion(greendragon_pixels[i]);
+	}
+
+	D3D11_SUBRESOURCE_DATA srd[10];
+	for (int i = 0; i < 10; ++i)
+	{
+		ZeroMemory(&srd[i], sizeof(srd[i]));
+		srd[i].pSysMem = greendragon_converted + greendragon_leveloffsets[i];
+		srd[i].SysMemPitch = (UINT)(greendragon_width >> i) * sizeof(unsigned int);
+	}
+
+	wnd.device->CreateTexture2D(&texDesc, srd, &wnd.dragonTexture);
+
+	delete[] greendragon_converted;
+
 	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
 	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
 	srvDesc.Texture2D.MipLevels = greendragon_numlevels;
+	srvDesc.Buffer.ElementOffset = 0;
+	srvDesc.Buffer.ElementWidth = sizeof(unsigned int);
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+
+	wnd.device->CreateShaderResourceView(wnd.dragonTexture, &srvDesc, &wnd.dragonResourceView);
 
 	return wnd;
 }
@@ -181,14 +255,13 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 void InitRender(D3D11Window *wnd)
 {
 	wnd->context->OMSetDepthStencilState(wnd->depthStencilState, 0);
-	wnd->context->PSSetShaderResources(0, 1, &wnd->shaderResourceView);
 	wnd->context->OMSetRenderTargets(1, &wnd->renderTargetView, wnd->depthStencilView);
 
 	wnd->context->ClearDepthStencilView(wnd->depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	wnd->context->RSSetViewports(1, &wnd->viewport);
 
-	const float black[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	const float black[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	wnd->context->ClearRenderTargetView(wnd->renderTargetView, black);
 
 	wnd->context->IASetInputLayout(wnd->inputLayout);
@@ -206,26 +279,28 @@ void EndRender(D3D11Window *wnd)
 //************ DESTRUCTION ***********************************
 //************************************************************
 
-bool ShutDown(D3D11Window wnd)
+bool ShutDown(D3D11Window *wnd)
 {
-	wnd.context->ClearState();
+	wnd->context->ClearState();
 
-	SAFE_RELEASE(wnd.depthStencil);
-	SAFE_RELEASE(wnd.depthStencilState);
-	SAFE_RELEASE(wnd.depthStencilView);
+	SAFE_RELEASE(wnd->depthStencil);
+	SAFE_RELEASE(wnd->depthStencilState);
+	SAFE_RELEASE(wnd->depthStencilView);
 
-	SAFE_RELEASE(wnd.shaderResourceView);
+	SAFE_RELEASE(wnd->dragonTexture);
+	SAFE_RELEASE(wnd->dragonSamplerState);
+	SAFE_RELEASE(wnd->dragonResourceView);
 
-	SAFE_RELEASE(wnd.pBB);
-	SAFE_RELEASE(wnd.swapchain);
-	SAFE_RELEASE(wnd.inputLayout);
-	SAFE_RELEASE(wnd.vertShader);
-	SAFE_RELEASE(wnd.pixelShader);
-	SAFE_RELEASE(wnd.renderTargetView);
-	SAFE_RELEASE(wnd.context);
-	SAFE_RELEASE(wnd.device);
+	SAFE_RELEASE(wnd->pBB);
+	SAFE_RELEASE(wnd->swapchain);
+	SAFE_RELEASE(wnd->inputLayout);
+	SAFE_RELEASE(wnd->vertShader);
+	SAFE_RELEASE(wnd->pixelShader);
+	SAFE_RELEASE(wnd->renderTargetView);
+	SAFE_RELEASE(wnd->context);
+	SAFE_RELEASE(wnd->device);
 
-	UnregisterClass(L"DirectXApplication", wnd.application);
+	UnregisterClass(L"DirectXApplication", wnd->application);
 	return true;
 }
 
@@ -234,6 +309,12 @@ bool ShutDown(D3D11Window wnd)
 //************************************************************
 
 global_variable D3D11Window wnd;
+global_variable XMFLOAT4X4 projectionMatrix;
+global_variable SHADER_CAMERA defaultCamera;
+global_variable float fov = 90.0f;
+global_variable float nearPlane = 0.01f;
+global_variable float farPlane = 1000.0f;
+
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow);
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
@@ -273,35 +354,35 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	// Define a cube
 	SIMPLE_VERTEX cubeVerts[] = {
-		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 0
-		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
-		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 0.0f, 1.0f }, {} }, // 0
+		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 1.0f, 0.0f }, {} },
 		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
 
-		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 4
-		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
-		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
-		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green,  { 0.0f, 1.0f }, {} }, // 4
+		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green,  { 0.0f, 0.0f }, {} },
+		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green,  { 1.0f, 0.0f }, {} },
+		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green,  { 1.0f, 1.0f }, {} },
 
-		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 8
-		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
-		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 1.0f }, {} }, // 8
+		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 0.0f }, {} },
 		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
 
-		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 12
-		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
-		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
-		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 1.0f }, {} }, // 12
+		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 0.0f }, {} },
+		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 0.0f }, {} },
+		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 1.0f }, {} },
 
-		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 16
-		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
-		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
-		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 1.0f }, {} }, // 16
+		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 0.0f }, {} },
+		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 0.0f }, {} },
+		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 1.0f }, {} },
 
-		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 20
-		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
-		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
-		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 1.0f }, {} }, // 20
+		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 0.0f }, {} },
+		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 0.0f }, {} },
+		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 1.0f }, {} },
 	};
 
 	unsigned int cubeIndices[] = {
@@ -318,26 +399,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	XMFLOAT4X4 cubeWorldMatrix;
 	XMStoreFloat4x4(&cubeWorldMatrix, XMMatrixTranspose(XMMatrixTranslation(-2, 0, 1)));
 
-	// Load the cube texture
-	/*
-	D3D11_TEXTURE2D_DESC texDesc;
-	ZeroMemory(&texDesc, sizeof(texDesc));
-	texDesc.Width = greendragon_width;
-	texDesc.Height = greendragon_height;
-	texDesc.MipLevels = texDesc.ArraySize = greendragon_numlevels;
-	texDesc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
-	texDesc.SampleDesc.Count = 1;
-	texDesc.Usage = D3D11_USAGE_IMMUTABLE;
-	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-	D3D11_SUBRESOURCE_DATA srd;
-	ZeroMemory(&srd, sizeof(srd));
-	srd.pSysMem = greendragon_pixels;
-
-	ID3D11Texture2D *dragonTexture;
-	wnd.device->CreateTexture2D(&texDesc, &srd, &dragonTexture);
-	*/
-
 	// Define the camera
 	XMMATRIX cameraMatrix = XMMatrixTranspose(XMMatrixMultiply(XMMatrixMultiply(
 		XMMatrixTranslation(-2, 1, -3),
@@ -349,14 +410,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	XMFLOAT4X4 viewMatrix;
 	XMStoreFloat4x4(&viewMatrix, XMMatrixInverse(&det, cameraMatrix));
 
-	float fov = 90.0f;
-	float nearPlane = 0.01f;
-	float farPlane = 1000.0f;
-
-	XMFLOAT4X4 projectionMatrix;
 	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(XMMatrixPerspectiveFovLH(fov, (float)width / (float)height, nearPlane, farPlane)));
 
-	camera defaultCamera;
 	defaultCamera.viewMatrix = viewMatrix;
 	defaultCamera.projectionMatrix = projectionMatrix;
 
@@ -366,7 +421,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 	constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	constBufferDesc.ByteWidth = sizeof(camera);
+	constBufferDesc.ByteWidth = sizeof(SHADER_CAMERA);
 
 	ID3D11Buffer *cameraConstBuffer;
 	wnd.device->CreateBuffer(&constBufferDesc, NULL, &cameraConstBuffer);
@@ -388,6 +443,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
+			continue;
 		}
 
 		// Update
@@ -397,7 +453,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 		D3D11_MAPPED_SUBRESOURCE msr;
 		wnd.context->Map(cameraConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
-		memcpy(msr.pData, &defaultCamera, sizeof(camera));
+		memcpy(msr.pData, &defaultCamera, sizeof(SHADER_CAMERA));
 		wnd.context->Unmap(cameraConstBuffer, 0);
 
 		wnd.context->VSSetConstantBuffers(0, 1, &cameraConstBuffer);
@@ -417,9 +473,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 		wnd.context->VSSetConstantBuffers(1, 1, &objectConstBuffer);
 
-		// TODO: Somehow we have to bind the texture right here
+		wnd.context->PSSetShaderResources(0, 1, &wnd.dragonResourceView);
+		wnd.context->PSSetSamplers(0, 1, &wnd.dragonSamplerState);
 		RenderMesh(&cube, wnd.context);
-		// And then unbind it here
 
 		EndRender(&wnd);
 
@@ -430,11 +486,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	FreeMesh(&cube);
 	FreeMesh(&spiral);
 
-	//SAFE_RELEASE(dragonTexture);
 	SAFE_RELEASE(cameraConstBuffer);
 	SAFE_RELEASE(objectConstBuffer);
 
-	ShutDown(wnd);
+	ShutDown(&wnd);
+
 	return 0;
 }
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -511,6 +567,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		dsvDesc.Texture2D.MipSlice = 0;
 
 		wnd.device->CreateDepthStencilView(wnd.depthStencil, &dsvDesc, &wnd.depthStencilView);
+
+		XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(XMMatrixPerspectiveFovLH(fov, (float)swapchainDesc.BufferDesc.Width / (float)swapchainDesc.BufferDesc.Height, nearPlane, farPlane)));
+		defaultCamera.projectionMatrix = projectionMatrix;
 	} break;
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);
