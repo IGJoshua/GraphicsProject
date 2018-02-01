@@ -7,24 +7,21 @@
 
 using namespace std;
 
-// BEGIN PART 1
-// TODO: PART 1 STEP 1a
 #include <d3d11.h>
-
-// TODO: PART 1 STEP 1b
 #include <DirectXMath.h>
 
 using namespace DirectX;
 
-// TODO: PART 2 STEP 6
+#include "defines.h"
+
+#include "greendragon.h"
+
+#include "vertex.h"
+#include "scene.h"
+#include "XTime.h"
+
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
-
-#define internal_function static
-#define global_variable static
-#define persistent_variable static
-
-#define SAFE_RELEASE(resource) if((resource)) { (resource)->Release(); (resource) = NULL; }
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -43,6 +40,10 @@ struct D3D11Window
 	ID3D11Device *device;
 	ID3D11DeviceContext *context;
 	ID3D11RenderTargetView *renderTargetView;
+	ID3D11Texture2D *depthStencil;
+	ID3D11DepthStencilState *depthStencilState;
+	ID3D11DepthStencilView *depthStencilView;
+	ID3D11ShaderResourceView *shaderResourceView;
 
 	IDXGISwapChain *swapchain;
 	ID3D11Resource * pBB;
@@ -53,14 +54,6 @@ struct D3D11Window
 
 	ID3D11VertexShader *vertShader;
 	ID3D11PixelShader *pixelShader;
-};
-
-struct SIMPLE_VERTEX
-{
-	XMFLOAT4 position;
-	XMFLOAT4 normal;
-	XMFLOAT4 color;
-	XMFLOAT2 uv;
 };
 
 //************************************************************
@@ -138,30 +131,75 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "UV", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "PADDING", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0}
 	};
 
 	wnd.device->CreateInputLayout(layoutDesc, ARRAYSIZE(layoutDesc), Trivial_VS, ARRAYSIZE(Trivial_VS), &wnd.inputLayout);
 
+	D3D11_TEXTURE2D_DESC dsTexDesc;
+	ZeroMemory(&dsTexDesc, sizeof(dsTexDesc));
+	dsTexDesc.Width = swapchainDesc.BufferDesc.Width;
+	dsTexDesc.Height = swapchainDesc.BufferDesc.Height;
+	dsTexDesc.MipLevels = 1;
+	dsTexDesc.ArraySize = 1;
+	dsTexDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	dsTexDesc.SampleDesc.Count = 1;
+	dsTexDesc.SampleDesc.Quality = 0;
+	dsTexDesc.Usage = D3D11_USAGE_DEFAULT;
+	dsTexDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+
+	wnd.device->CreateTexture2D(&dsTexDesc, NULL, &wnd.depthStencil);
+
+	D3D11_DEPTH_STENCIL_DESC dsDesc;
+	ZeroMemory(&dsDesc, sizeof(dsDesc));
+	dsDesc.DepthEnable = true;
+	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+
+	wnd.device->CreateDepthStencilState(&dsDesc, &wnd.depthStencilState);
+
+	wnd.context->OMSetDepthStencilState(wnd.depthStencilState, 0);
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+	ZeroMemory(&dsvDesc, sizeof(dsvDesc));
+	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Texture2D.MipSlice = 0;
+
+	wnd.device->CreateDepthStencilView(wnd.depthStencil, &dsvDesc, &wnd.depthStencilView);
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+	ZeroMemory(&srvDesc, sizeof(srvDesc));
+	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = greendragon_numlevels;
+
 	return wnd;
 }
 
-bool Run(D3D11Window wnd)
+void InitRender(D3D11Window *wnd)
 {
-	wnd.context->OMSetRenderTargets(1, &wnd.renderTargetView, 0);
-	wnd.context->RSSetViewports(1, &wnd.viewport);
+	wnd->context->OMSetDepthStencilState(wnd->depthStencilState, 0);
+	wnd->context->PSSetShaderResources(0, 1, &wnd->shaderResourceView);
+	wnd->context->OMSetRenderTargets(1, &wnd->renderTargetView, wnd->depthStencilView);
 
-	const float darkBlue[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	wnd.context->ClearRenderTargetView(wnd.renderTargetView, darkBlue);
+	wnd->context->ClearDepthStencilView(wnd->depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
-	wnd.context->IASetInputLayout(wnd.inputLayout);
+	wnd->context->RSSetViewports(1, &wnd->viewport);
 
-	wnd.context->PSSetShader(wnd.pixelShader, NULL, NULL);
-	wnd.context->VSSetShader(wnd.vertShader, NULL, NULL);
+	const float black[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	wnd->context->ClearRenderTargetView(wnd->renderTargetView, black);
 
-	wnd.swapchain->Present(1, 0);
+	wnd->context->IASetInputLayout(wnd->inputLayout);
 
-	return true;
+	wnd->context->PSSetShader(wnd->pixelShader, NULL, NULL);
+	wnd->context->VSSetShader(wnd->vertShader, NULL, NULL);
+}
+
+void EndRender(D3D11Window *wnd)
+{
+	wnd->swapchain->Present(1, 0);
 }
 
 //************************************************************
@@ -171,6 +209,12 @@ bool Run(D3D11Window wnd)
 bool ShutDown(D3D11Window wnd)
 {
 	wnd.context->ClearState();
+
+	SAFE_RELEASE(wnd.depthStencil);
+	SAFE_RELEASE(wnd.depthStencilState);
+	SAFE_RELEASE(wnd.depthStencilView);
+
+	SAFE_RELEASE(wnd.shaderResourceView);
 
 	SAFE_RELEASE(wnd.pBB);
 	SAFE_RELEASE(wnd.swapchain);
@@ -197,19 +241,199 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 {
 	srand(unsigned int(time(0)));
 
-	unsigned int width = 1280;
-	unsigned int height = 720;
+	unsigned int width = 640;
+	unsigned int height = 480;
 
 	wnd = InitApp(hInstance, (WNDPROC)WndProc, width, height);
-	MSG msg; ZeroMemory(&msg, sizeof(msg));
-	while (msg.message != WM_QUIT && Run(wnd))
+
+	XMFLOAT4 white = { 1.0f, 1.0f, 1.0f, 1.0f };
+	XMFLOAT4 green = { 0.0f, 1.0f, 0.0f, 1.0f };
+
+	// Define a spiral
+	unsigned int spiralVertCount = 360 * 16;
+	SIMPLE_VERTEX *spiralVerts = new SIMPLE_VERTEX[spiralVertCount];
+
+	for (unsigned int i = 0; i < spiralVertCount; ++i)
 	{
+		spiralVerts[i].position.x = (float)cos(XMConvertToRadians((float)i)) * 0.5f;
+		spiralVerts[i].position.y = (float)sin(XMConvertToRadians((float)i)) * 0.5f;
+		spiralVerts[i].position.z = (float)i / (float)spiralVertCount * 10.0f;
+		spiralVerts[i].position.w = 1.0f;
+
+		spiralVerts[i].uv = { 0.0f, 0.0f };
+		spiralVerts[i].color = white;
+		spiralVerts[i].normal = { 0.0f, 0.0f, 0.0f, 0.0f };
+	}
+
+	mesh spiral = CreateMesh(wnd.device, spiralVerts, spiralVertCount, D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
+	XMFLOAT4X4 spiralWorldMatrix;
+	XMStoreFloat4x4(&spiralWorldMatrix, XMMatrixIdentity());
+
+	delete[] spiralVerts;
+
+	// Define a cube
+	SIMPLE_VERTEX cubeVerts[] = {
+		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 0
+		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
+		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, -1.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+
+		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 4
+		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
+		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+
+		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 8
+		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
+		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { -1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+
+		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 12
+		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
+		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+
+		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 16
+		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
+		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+
+		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 0.0f }, {} }, // 20
+		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 1.0f }, {} },
+		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 0.0f, 0.0f }, {} },
+		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green, { 1.0f, 1.0f }, {} },
+	};
+
+	unsigned int cubeIndices[] = {
+		0, 1, 2,  2, 3, 0, // Front face
+		4, 5, 6,  6, 7, 4, // Back face
+		8, 9, 10, 10, 11, 8, // Left face
+		12, 13, 14, 14, 15, 12, // Right face
+		16, 17, 18, 18, 19, 16, // Top face
+		20, 21, 22, 22, 23, 20 // Bottom face
+	};
+
+	mesh cube = CreateMeshIndexed(wnd.device, cubeVerts, 24, cubeIndices, 36, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	XMFLOAT4X4 cubeWorldMatrix;
+	XMStoreFloat4x4(&cubeWorldMatrix, XMMatrixTranspose(XMMatrixTranslation(-2, 0, 1)));
+
+	// Load the cube texture
+	/*
+	D3D11_TEXTURE2D_DESC texDesc;
+	ZeroMemory(&texDesc, sizeof(texDesc));
+	texDesc.Width = greendragon_width;
+	texDesc.Height = greendragon_height;
+	texDesc.MipLevels = texDesc.ArraySize = greendragon_numlevels;
+	texDesc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+	D3D11_SUBRESOURCE_DATA srd;
+	ZeroMemory(&srd, sizeof(srd));
+	srd.pSysMem = greendragon_pixels;
+
+	ID3D11Texture2D *dragonTexture;
+	wnd.device->CreateTexture2D(&texDesc, &srd, &dragonTexture);
+	*/
+
+	// Define the camera
+	XMMATRIX cameraMatrix = XMMatrixTranspose(XMMatrixMultiply(XMMatrixMultiply(
+		XMMatrixTranslation(-2, 1, -3),
+		XMMatrixRotationX(XMConvertToRadians(30))),
+		XMMatrixRotationY(XMConvertToRadians(45))));
+	
+	XMVECTOR det = XMMatrixDeterminant(cameraMatrix);
+
+	XMFLOAT4X4 viewMatrix;
+	XMStoreFloat4x4(&viewMatrix, XMMatrixInverse(&det, cameraMatrix));
+
+	float fov = 90.0f;
+	float nearPlane = 0.01f;
+	float farPlane = 1000.0f;
+
+	XMFLOAT4X4 projectionMatrix;
+	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(XMMatrixPerspectiveFovLH(fov, (float)width / (float)height, nearPlane, farPlane)));
+
+	camera defaultCamera;
+	defaultCamera.viewMatrix = viewMatrix;
+	defaultCamera.projectionMatrix = projectionMatrix;
+
+	// Do the whole constant buffer dance
+	D3D11_BUFFER_DESC constBufferDesc;
+	ZeroMemory(&constBufferDesc, sizeof(constBufferDesc));
+	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	constBufferDesc.ByteWidth = sizeof(camera);
+
+	ID3D11Buffer *cameraConstBuffer;
+	wnd.device->CreateBuffer(&constBufferDesc, NULL, &cameraConstBuffer);
+
+	ZeroMemory(&constBufferDesc, sizeof(constBufferDesc));
+	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	constBufferDesc.ByteWidth = sizeof(XMFLOAT4X4);
+
+	ID3D11Buffer *objectConstBuffer;
+	wnd.device->CreateBuffer(&constBufferDesc, NULL, &objectConstBuffer);
+
+	MSG msg; ZeroMemory(&msg, sizeof(msg));
+	while (msg.message != WM_QUIT)
+	{
+		// Input (and message handling)
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+
+		// Update
+
+		// Render
+		InitRender(&wnd);
+
+		D3D11_MAPPED_SUBRESOURCE msr;
+		wnd.context->Map(cameraConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
+		memcpy(msr.pData, &defaultCamera, sizeof(camera));
+		wnd.context->Unmap(cameraConstBuffer, 0);
+
+		wnd.context->VSSetConstantBuffers(0, 1, &cameraConstBuffer);
+
+		wnd.context->Map(objectConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
+		memcpy(msr.pData, &spiralWorldMatrix, sizeof(XMFLOAT4X4));
+		wnd.context->Unmap(objectConstBuffer, 0);
+
+		wnd.context->VSSetConstantBuffers(1, 1, &objectConstBuffer);
+
+		// Render each mesh
+		RenderMesh(&spiral, wnd.context);
+
+		wnd.context->Map(objectConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
+		memcpy(msr.pData, &cubeWorldMatrix, sizeof(XMFLOAT4X4));
+		wnd.context->Unmap(objectConstBuffer, 0);
+
+		wnd.context->VSSetConstantBuffers(1, 1, &objectConstBuffer);
+
+		// TODO: Somehow we have to bind the texture right here
+		RenderMesh(&cube, wnd.context);
+		// And then unbind it here
+
+		EndRender(&wnd);
+
+		// Timestep
+		// Fixed framerate?
 	}
+
+	FreeMesh(&cube);
+	FreeMesh(&spiral);
+
+	//SAFE_RELEASE(dragonTexture);
+	SAFE_RELEASE(cameraConstBuffer);
+	SAFE_RELEASE(objectConstBuffer);
+
 	ShutDown(wnd);
 	return 0;
 }
@@ -226,9 +450,67 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case (WM_SIZE):
 	{
 		if (wnd.swapchain == nullptr) break;
-		INT nHeight = HIWORD(lParam);
-		INT nWidth = LOWORD(lParam);
-		wnd.swapchain->ResizeBuffers(wnd.bufferCount, nWidth, nHeight, wnd.dxgiFormat, wnd.swpFlags);
+		wnd.context->OMSetRenderTargets(0, 0, 0);
+		SAFE_RELEASE(wnd.renderTargetView);
+		SAFE_RELEASE(wnd.pBB);
+		SAFE_RELEASE(wnd.depthStencilView);
+		SAFE_RELEASE(wnd.depthStencilState);
+		SAFE_RELEASE(wnd.depthStencil);
+
+		HRESULT hr;
+		hr = wnd.swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+
+		// TODO: Error handling
+
+		hr = wnd.swapchain->GetBuffer(0, __uuidof(wnd.pBB), reinterpret_cast<void**>(&wnd.pBB));
+
+		// TODO: Error handling
+
+		hr = wnd.device->CreateRenderTargetView(wnd.pBB, NULL, &wnd.renderTargetView);
+
+		// TODO: Error handling
+
+		wnd.context->OMSetRenderTargets(1, &wnd.renderTargetView, NULL);
+
+		DXGI_SWAP_CHAIN_DESC swapchainDesc;
+
+		wnd.viewport.TopLeftX = 0;
+		wnd.viewport.TopLeftY = 0;
+		wnd.viewport.MinDepth = 0;
+		wnd.viewport.MaxDepth = 1;
+		wnd.swapchain->GetDesc(&swapchainDesc);
+		wnd.viewport.Width = (float)swapchainDesc.BufferDesc.Width;
+		wnd.viewport.Height = (float)swapchainDesc.BufferDesc.Height;
+
+		D3D11_TEXTURE2D_DESC dsTexDesc;
+		ZeroMemory(&dsTexDesc, sizeof(dsTexDesc));
+		dsTexDesc.Width = swapchainDesc.BufferDesc.Width;
+		dsTexDesc.Height = swapchainDesc.BufferDesc.Height;
+		dsTexDesc.MipLevels = 1;
+		dsTexDesc.ArraySize = 1;
+		dsTexDesc.Format = DXGI_FORMAT_D32_FLOAT;
+		dsTexDesc.SampleDesc.Count = 1;
+		dsTexDesc.SampleDesc.Quality = 0;
+		dsTexDesc.Usage = D3D11_USAGE_DEFAULT;
+		dsTexDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+
+		wnd.device->CreateTexture2D(&dsTexDesc, NULL, &wnd.depthStencil);
+
+		D3D11_DEPTH_STENCIL_DESC dsDesc;
+		ZeroMemory(&dsDesc, sizeof(dsDesc));
+		dsDesc.DepthEnable = true;
+		dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+		dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+
+		wnd.device->CreateDepthStencilState(&dsDesc, &wnd.depthStencilState);
+
+		D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+		ZeroMemory(&dsvDesc, sizeof(dsvDesc));
+		dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+		dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+		dsvDesc.Texture2D.MipSlice = 0;
+
+		wnd.device->CreateDepthStencilView(wnd.depthStencil, &dsvDesc, &wnd.depthStencilView);
 	} break;
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);
