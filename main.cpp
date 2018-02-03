@@ -10,6 +10,8 @@ using namespace std;
 #include "defines.h"
 
 #include "greendragon.h"
+#include "StoneHenge_Texture.h"
+#include "StoneHenge.h"
 
 #include "scene.h"
 #include "camera.h"
@@ -425,8 +427,95 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	ID3D11Buffer *objectConstBuffer;
 	wnd.device->CreateBuffer(&constBufferDesc, NULL, &objectConstBuffer);
 
+	int pyramidVertCount = 1457;
+	SIMPLE_VERTEX *pyramidVerts = new SIMPLE_VERTEX[pyramidVertCount];
+
+	XMFLOAT4 red = { 1.0, 0.0, 0.0, 1.0 };
+
+	for (int i = 0; i < pyramidVertCount; ++i)
+	{
+		SIMPLE_VERTEX temp;
+		temp.position = { StoneHenge_data[i].pos[0] / 2, StoneHenge_data[i].pos[1] / 2, StoneHenge_data[i].pos[2] / 2, 1.0f };
+		temp.color = red;
+		temp.normal = { StoneHenge_data[i].nrm[0], StoneHenge_data[i].nrm[1], StoneHenge_data[i].nrm[2], 0.0f };
+		temp.uv = { StoneHenge_data[i].uvw[0], StoneHenge_data[i].uvw[1] };
+		temp.padding = { 0.0f, 0.0f };
+		pyramidVerts[i] = temp;
+	}
+
+	int pyramidIndexCount = 2532;
+	unsigned int *pyramidIndices = new unsigned int[pyramidIndexCount];
+
+	memcpy(pyramidIndices, StoneHenge_indicies, pyramidIndexCount * sizeof(unsigned int));
+
+	mesh pyramidMesh = CreateMeshIndexed(wnd.device, pyramidVerts, pyramidVertCount, pyramidIndices, pyramidIndexCount, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	delete[] pyramidVerts;
+	delete[] pyramidIndices;
+
+	model pyramid;
+
+	// Texture for pyramid
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	sampDesc.MinLOD = 0;
+	sampDesc.MaxLOD = StoneHenge_numlevels;
+
+	ID3D11SamplerState *pyramidSamplerState;
+	wnd.device->CreateSamplerState(&sampDesc, &pyramidSamplerState);
+
+	// Load the cube texture
+	ZeroMemory(&texDesc, sizeof(texDesc));
+	texDesc.Width = StoneHenge_width;
+	texDesc.Height = StoneHenge_height;
+	texDesc.MipLevels = StoneHenge_numlevels;
+	texDesc.ArraySize = 1;
+	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+	// Convert the texture
+	unsigned int *stonehenge_converted = new unsigned int[StoneHenge_numpixels];
+	for (unsigned int i = 0; i < StoneHenge_numpixels; ++i)
+	{
+		stonehenge_converted[i] = colorTGAConversion(StoneHenge_pixels[i]);
+	}
+
+	for (int i = 0; i < 10; ++i)
+	{
+		ZeroMemory(&srd[i], sizeof(srd[i]));
+		srd[i].pSysMem = stonehenge_converted + StoneHenge_leveloffsets[i];
+		srd[i].SysMemPitch = (UINT)(StoneHenge_width >> i) * sizeof(unsigned int);
+	}
+
+	ID3D11Texture2D *stonehengeTexture;
+	wnd.device->CreateTexture2D(&texDesc, srd, &stonehengeTexture);
+
+	delete[] stonehenge_converted;
+
+	ZeroMemory(&srvDesc, sizeof(srvDesc));
+	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	srvDesc.Texture2D.MipLevels = StoneHenge_numlevels;
+	srvDesc.Buffer.ElementOffset = 0;
+	srvDesc.Buffer.ElementWidth = sizeof(unsigned int);
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+
+	ID3D11ShaderResourceView *pyramidResourceView;
+	wnd.device->CreateShaderResourceView(stonehengeTexture, &srvDesc, &pyramidResourceView);
+
+	pyramid.mesh = &pyramidMesh;
+	pyramid.pixelShader = pixelShader;
+	pyramid.shaderResourceView = pyramidResourceView;
+	XMStoreFloat4x4(&pyramid.transform, XMMatrixTranspose(XMMatrixTranslation(-2.3f, -1.7f, 0.9f)));
+	pyramid.textureSampler = pyramidSamplerState;
+
 	spiral.transformBuffer = objectConstBuffer;
 	cube.transformBuffer = objectConstBuffer;
+	pyramid.transformBuffer = objectConstBuffer;
 
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)
@@ -479,6 +568,26 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 			viewCamera.pitch -= (float)(timer.Delta() * 1);
 		if (GetAsyncKeyState(VK_DOWN))
 			viewCamera.pitch += (float)(timer.Delta() * 1);
+		if (GetAsyncKeyState(VK_RSHIFT) != 0 && GetAsyncKeyState(VK_OEM_4) != 0)
+		{
+			viewCamera.farPlane -= (float)(timer.Delta() * 100);
+			if (viewCamera.farPlane < viewCamera.nearPlane + 0.1f) viewCamera.farPlane = viewCamera.nearPlane + 0.1f;
+		}
+		else if (GetAsyncKeyState(VK_OEM_4))
+		{
+			viewCamera.nearPlane -= (float)(timer.Delta() * 1);
+			if (viewCamera.nearPlane < 0.1f) viewCamera.nearPlane = 0.1f;
+		}
+		if (GetAsyncKeyState(VK_RSHIFT) != 0 && GetAsyncKeyState(VK_OEM_6) != 0)
+		{
+			viewCamera.farPlane += (float)(timer.Delta() * 100);
+			if (viewCamera.farPlane > 1000) viewCamera.farPlane = 1000;
+		}
+		else if (GetAsyncKeyState(VK_OEM_6))
+		{
+			viewCamera.nearPlane += (float)(timer.Delta() * 1);
+			if (viewCamera.nearPlane > viewCamera.farPlane - 0.1f) viewCamera.nearPlane = viewCamera.farPlane - 0.1f;
+		}
 
 		// Render
 		InitRender(&wnd);
@@ -505,6 +614,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		// Render each mesh
 		RenderModel(&cube, wnd.context);
 		RenderModel(&spiral, wnd.context);
+		RenderModel(&pyramid, wnd.context);
 
 		EndRender(&wnd);
 
@@ -514,6 +624,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	FreeMesh(&cubeMesh);
 	FreeMesh(&spiralMesh);
+	FreeMesh(&pyramidMesh);
 
 	SAFE_RELEASE(cameraConstBuffer);
 	SAFE_RELEASE(objectConstBuffer);
@@ -521,6 +632,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	SAFE_RELEASE(dragonSamplerState);
 	SAFE_RELEASE(dragonResourceView);
 	SAFE_RELEASE(dragonTexture);
+
+	SAFE_RELEASE(pyramidSamplerState);
+	SAFE_RELEASE(pyramidResourceView);
+	SAFE_RELEASE(stonehengeTexture);
 
 	SAFE_RELEASE(pixelShaderBlank);
 	SAFE_RELEASE(pixelShader);

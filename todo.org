@@ -4,8 +4,10 @@
   CLOSED: [2018-02-01 Thu 16:55]
 * DONE Refactor to have a model abstraction that supports textures
   CLOSED: [2018-02-03 Sat 16:20]
-* TODO Refactor to have camera be a separate entity
+* DONE Refactor to have camera be a separate entity
+  CLOSED: [2018-02-03 Sat 17:11]
 * TODO Shader that changes how things appear based on position and time?
-* TODO Generate an OBJ with the tool to render a complex mesh
+* DONE Generate an OBJ with the tool to render a complex mesh
+  CLOSED: [2018-02-03 Sat 18:41]
 * TODO Directional light to complex mesh
 * TODO 2 lights same geometry

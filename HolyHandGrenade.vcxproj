@@ -205,6 +205,9 @@
     <ClInclude Include="model.h" />
     <ClInclude Include="resource_loading.h" />
     <ClInclude Include="scene.h" />
+    <ClInclude Include="StoneHenge.h" />
+    <ClInclude Include="StoneHenge_Texture.h" />
+    <ClInclude Include="test pyramid.h" />
     <ClInclude Include="XTime.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
