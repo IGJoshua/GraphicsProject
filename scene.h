@@ -1,9 +1,6 @@
 #pragma once
 #include "defines.h"
 
-#include <vector>
-
-#include "vertex.h"
 #include "lights.h"
 #include "mesh.h"
 

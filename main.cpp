@@ -7,37 +7,23 @@
 
 using namespace std;
 
-#include <d3d11.h>
-#include <DirectXMath.h>
-
-using namespace DirectX;
-
 #include "defines.h"
 
 #include "greendragon.h"
 
-#include "vertex.h"
 #include "scene.h"
+#include "camera.h"
+#include "model.h"
 #include "XTime.h"
 
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
 
+#include "psBlank.csh"
+
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
 //************************************************************
-
-union color
-{
-	unsigned int cint;
-	struct
-	{
-		unsigned char B;
-		unsigned char G;
-		unsigned char R;
-		unsigned char A;
-	};
-};
 
 unsigned int colorTGAConversion(unsigned int initCol)
 {
@@ -69,10 +55,6 @@ struct D3D11Window
 	ID3D11DepthStencilState *depthStencilState;
 	ID3D11DepthStencilView *depthStencilView;
 
-	ID3D11Texture2D *dragonTexture;
-	ID3D11SamplerState *dragonSamplerState;
-	ID3D11ShaderResourceView *dragonResourceView;
-
 	IDXGISwapChain *swapchain;
 	ID3D11Resource * pBB;
 
@@ -81,7 +63,6 @@ struct D3D11Window
 	ID3D11InputLayout *inputLayout;
 
 	ID3D11VertexShader *vertShader;
-	ID3D11PixelShader *pixelShader;
 };
 
 //************************************************************
@@ -152,7 +133,6 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 	wnd.viewport.Height = (float)swapchainDesc.BufferDesc.Height;
 
 	wnd.device->CreateVertexShader(&Trivial_VS, ARRAYSIZE(Trivial_VS), NULL, &wnd.vertShader);
-	wnd.device->CreatePixelShader(&Trivial_PS, ARRAYSIZE(Trivial_PS), NULL, &wnd.pixelShader);
 
 	D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
 	{
@@ -197,58 +177,6 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 
 	wnd.device->CreateDepthStencilView(wnd.depthStencil, &dsvDesc, &wnd.depthStencilView);
 
-	D3D11_SAMPLER_DESC sampDesc;
-	ZeroMemory(&sampDesc, sizeof(sampDesc));
-	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
-	sampDesc.MinLOD = 0;
-	sampDesc.MaxLOD = greendragon_numlevels;
-
-	wnd.device->CreateSamplerState(&sampDesc, &wnd.dragonSamplerState);
-
-	// Load the cube texture
-	D3D11_TEXTURE2D_DESC texDesc;
-	ZeroMemory(&texDesc, sizeof(texDesc));
-	texDesc.Width = greendragon_width;
-	texDesc.Height = greendragon_height;
-	texDesc.MipLevels = greendragon_numlevels;
-	texDesc.ArraySize = 1;
-	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-	texDesc.SampleDesc.Count = 1;
-	texDesc.Usage = D3D11_USAGE_IMMUTABLE;
-	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-	// Convert the texture
-	unsigned int *greendragon_converted = new unsigned int[greendragon_numpixels];
-	for (unsigned int i = 0; i < greendragon_numpixels; ++i)
-	{
-		greendragon_converted[i] = colorTGAConversion(greendragon_pixels[i]);
-	}
-
-	D3D11_SUBRESOURCE_DATA srd[10];
-	for (int i = 0; i < 10; ++i)
-	{
-		ZeroMemory(&srd[i], sizeof(srd[i]));
-		srd[i].pSysMem = greendragon_converted + greendragon_leveloffsets[i];
-		srd[i].SysMemPitch = (UINT)(greendragon_width >> i) * sizeof(unsigned int);
-	}
-
-	wnd.device->CreateTexture2D(&texDesc, srd, &wnd.dragonTexture);
-
-	delete[] greendragon_converted;
-
-	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-	srvDesc.Texture2D.MipLevels = greendragon_numlevels;
-	srvDesc.Buffer.ElementOffset = 0;
-	srvDesc.Buffer.ElementWidth = sizeof(unsigned int);
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-
-	wnd.device->CreateShaderResourceView(wnd.dragonTexture, &srvDesc, &wnd.dragonResourceView);
-
 	return wnd;
 }
 
@@ -261,12 +189,11 @@ void InitRender(D3D11Window *wnd)
 
 	wnd->context->RSSetViewports(1, &wnd->viewport);
 
-	const float black[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	const float black[4] = { 0.3f, 0.8f, 0.3f, 1.0f };
 	wnd->context->ClearRenderTargetView(wnd->renderTargetView, black);
 
 	wnd->context->IASetInputLayout(wnd->inputLayout);
 
-	wnd->context->PSSetShader(wnd->pixelShader, NULL, NULL);
 	wnd->context->VSSetShader(wnd->vertShader, NULL, NULL);
 }
 
@@ -287,15 +214,10 @@ bool ShutDown(D3D11Window *wnd)
 	SAFE_RELEASE(wnd->depthStencilState);
 	SAFE_RELEASE(wnd->depthStencilView);
 
-	SAFE_RELEASE(wnd->dragonTexture);
-	SAFE_RELEASE(wnd->dragonSamplerState);
-	SAFE_RELEASE(wnd->dragonResourceView);
-
 	SAFE_RELEASE(wnd->pBB);
 	SAFE_RELEASE(wnd->swapchain);
 	SAFE_RELEASE(wnd->inputLayout);
 	SAFE_RELEASE(wnd->vertShader);
-	SAFE_RELEASE(wnd->pixelShader);
 	SAFE_RELEASE(wnd->renderTargetView);
 	SAFE_RELEASE(wnd->context);
 	SAFE_RELEASE(wnd->device);
@@ -311,19 +233,17 @@ bool ShutDown(D3D11Window *wnd)
 global_variable D3D11Window wnd;
 global_variable XMFLOAT4X4 projectionMatrix;
 global_variable SHADER_CAMERA defaultCamera;
-global_variable float fov = 90.0f;
-global_variable float nearPlane = 0.01f;
-global_variable float farPlane = 1000.0f;
-
+global_variable unsigned int width = 640;
+global_variable unsigned int height = 480;
+global_variable XTime timer;
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow);
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 {
 	srand(unsigned int(time(0)));
+	timer.Restart();
 
-	unsigned int width = 640;
-	unsigned int height = 480;
 
 	wnd = InitApp(hInstance, (WNDPROC)WndProc, width, height);
 
@@ -346,9 +266,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		spiralVerts[i].normal = { 0.0f, 0.0f, 0.0f, 0.0f };
 	}
 
-	mesh spiral = CreateMesh(wnd.device, spiralVerts, spiralVertCount, D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
+	mesh spiralMesh = CreateMesh(wnd.device, spiralVerts, spiralVertCount, D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
 	XMFLOAT4X4 spiralWorldMatrix;
 	XMStoreFloat4x4(&spiralWorldMatrix, XMMatrixIdentity());
+
+	ID3D11PixelShader *pixelShaderBlank;
+	wnd.device->CreatePixelShader(psBlank, ARRAYSIZE(psBlank), NULL, &pixelShaderBlank);
+
+	model spiral;
+	spiral.mesh = &spiralMesh;
+	spiral.pixelShader = pixelShaderBlank;
+	spiral.shaderResourceView = NULL;
+	spiral.transform = spiralWorldMatrix;
 
 	delete[] spiralVerts;
 
@@ -394,26 +323,87 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		20, 21, 22, 22, 23, 20 // Bottom face
 	};
 
-	mesh cube = CreateMeshIndexed(wnd.device, cubeVerts, 24, cubeIndices, 36, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	mesh cubeMesh = CreateMeshIndexed(wnd.device, cubeVerts, 24, cubeIndices, 36, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	D3D11_SAMPLER_DESC sampDesc;
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	sampDesc.MinLOD = 0;
+	sampDesc.MaxLOD = greendragon_numlevels;
+
+	ID3D11SamplerState *dragonSamplerState;
+	wnd.device->CreateSamplerState(&sampDesc, &dragonSamplerState);
+
+	// Load the cube texture
+	D3D11_TEXTURE2D_DESC texDesc;
+	ZeroMemory(&texDesc, sizeof(texDesc));
+	texDesc.Width = greendragon_width;
+	texDesc.Height = greendragon_height;
+	texDesc.MipLevels = greendragon_numlevels;
+	texDesc.ArraySize = 1;
+	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+	// Convert the texture
+	unsigned int *greendragon_converted = new unsigned int[greendragon_numpixels];
+	for (unsigned int i = 0; i < greendragon_numpixels; ++i)
+	{
+		greendragon_converted[i] = colorTGAConversion(greendragon_pixels[i]);
+	}
+
+	D3D11_SUBRESOURCE_DATA srd[10];
+	for (int i = 0; i < 10; ++i)
+	{
+		ZeroMemory(&srd[i], sizeof(srd[i]));
+		srd[i].pSysMem = greendragon_converted + greendragon_leveloffsets[i];
+		srd[i].SysMemPitch = (UINT)(greendragon_width >> i) * sizeof(unsigned int);
+	}
+
+	ID3D11Texture2D *dragonTexture;
+	wnd.device->CreateTexture2D(&texDesc, srd, &dragonTexture);
+
+	delete[] greendragon_converted;
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+	ZeroMemory(&srvDesc, sizeof(srvDesc));
+	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	srvDesc.Texture2D.MipLevels = greendragon_numlevels;
+	srvDesc.Buffer.ElementOffset = 0;
+	srvDesc.Buffer.ElementWidth = sizeof(unsigned int);
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+
+	ID3D11ShaderResourceView *dragonResourceView;
+	wnd.device->CreateShaderResourceView(dragonTexture, &srvDesc, &dragonResourceView);
+
+	ID3D11PixelShader *pixelShader;
+	wnd.device->CreatePixelShader(Trivial_PS, ARRAYSIZE(Trivial_PS), NULL, &pixelShader);
+
+	model cube;
+	cube.mesh = &cubeMesh;
+	cube.pixelShader = pixelShader;
+	cube.shaderResourceView = dragonResourceView;
+	cube.textureSampler = dragonSamplerState;
 
 	XMFLOAT4X4 cubeWorldMatrix;
 	XMStoreFloat4x4(&cubeWorldMatrix, XMMatrixTranspose(XMMatrixTranslation(-2, 0, 1)));
 
+	cube.transform = cubeWorldMatrix;
+
 	// Define the camera
-	XMMATRIX cameraMatrix = XMMatrixTranspose(XMMatrixMultiply(XMMatrixMultiply(
-		XMMatrixTranslation(-2, 1, -3),
-		XMMatrixRotationX(XMConvertToRadians(30))),
-		XMMatrixRotationY(XMConvertToRadians(45))));
-	
-	XMVECTOR det = XMMatrixDeterminant(cameraMatrix);
+	camera viewCamera;
+	viewCamera.position = { 0, 0, -3, 1 };
+	viewCamera.pitch = 0;
+	viewCamera.yaw = 0;
+	viewCamera.fov = 90;
+	viewCamera.nearPlane = 0.1f;
+	viewCamera.farPlane = 1000;
 
 	XMFLOAT4X4 viewMatrix;
-	XMStoreFloat4x4(&viewMatrix, XMMatrixInverse(&det, cameraMatrix));
-
-	XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(XMMatrixPerspectiveFovLH(fov, (float)width / (float)height, nearPlane, farPlane)));
-
-	defaultCamera.viewMatrix = viewMatrix;
-	defaultCamera.projectionMatrix = projectionMatrix;
 
 	// Do the whole constant buffer dance
 	D3D11_BUFFER_DESC constBufferDesc;
@@ -435,10 +425,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	ID3D11Buffer *objectConstBuffer;
 	wnd.device->CreateBuffer(&constBufferDesc, NULL, &objectConstBuffer);
 
+	spiral.transformBuffer = objectConstBuffer;
+	cube.transformBuffer = objectConstBuffer;
+
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)
 	{
-		// Input (and message handling)
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
@@ -446,10 +438,62 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 			continue;
 		}
 
+		timer.Signal();
+
+		// Input (and message handling)
+
 		// Update
+		if (GetAsyncKeyState('A'))
+		{
+			viewCamera.position.x -= (float)(cos(viewCamera.yaw) * timer.Delta() * 3);
+			viewCamera.position.z += (float)(sin(viewCamera.yaw) * timer.Delta() * 3);
+		}
+		if (GetAsyncKeyState('D'))
+		{
+			viewCamera.position.x += (float)(cos(viewCamera.yaw) * timer.Delta() * 3);
+			viewCamera.position.z -= (float)(sin(viewCamera.yaw) * timer.Delta() * 3);
+		}
+		if (GetAsyncKeyState('W'))
+		{
+			viewCamera.position.x += (float)(sin(viewCamera.yaw) * timer.Delta() * 3);
+			viewCamera.position.z += (float)(cos(viewCamera.yaw) * timer.Delta() * 3);
+		}
+		if (GetAsyncKeyState('S'))
+		{
+			viewCamera.position.x -= (float)(sin(viewCamera.yaw) * timer.Delta() * 3);
+			viewCamera.position.z -= (float)(cos(viewCamera.yaw) * timer.Delta() * 3);
+		}
+		if (GetAsyncKeyState(VK_SPACE))
+			viewCamera.position.y += (float)(timer.Delta() * 3);
+		if (GetAsyncKeyState(VK_LSHIFT))
+			viewCamera.position.y -= (float)(timer.Delta() * 3);
+		if (GetAsyncKeyState('Q'))
+			viewCamera.fov += (float)(timer.Delta() * 100);
+		if (GetAsyncKeyState('E'))
+			viewCamera.fov -= (float)(timer.Delta() * 100);
+		if (GetAsyncKeyState(VK_LEFT))
+			viewCamera.yaw -= (float)(timer.Delta() * 1);
+		if (GetAsyncKeyState(VK_RIGHT))
+			viewCamera.yaw += (float)(timer.Delta() * 1);
+		if (GetAsyncKeyState(VK_UP))
+			viewCamera.pitch -= (float)(timer.Delta() * 1);
+		if (GetAsyncKeyState(VK_DOWN))
+			viewCamera.pitch += (float)(timer.Delta() * 1);
 
 		// Render
 		InitRender(&wnd);
+
+		// Setup the camera
+		XMMATRIX cameraMatrix = XMMatrixTranspose(XMMatrixMultiply(XMMatrixMultiply(
+			XMMatrixRotationX(viewCamera.pitch),
+			XMMatrixRotationY(viewCamera.yaw)),
+			XMMatrixTranslation(viewCamera.position.x, viewCamera.position.y, viewCamera.position.z)));
+
+		XMStoreFloat4x4(&viewMatrix, XMMatrixInverse(NULL, cameraMatrix));
+		XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(XMMatrixPerspectiveFovLH(XMConvertToRadians(viewCamera.fov), (float)width / (float)height, viewCamera.nearPlane, viewCamera.farPlane)));
+
+		defaultCamera.viewMatrix = viewMatrix;
+		defaultCamera.projectionMatrix = projectionMatrix;
 
 		D3D11_MAPPED_SUBRESOURCE msr;
 		wnd.context->Map(cameraConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
@@ -458,24 +502,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 		wnd.context->VSSetConstantBuffers(0, 1, &cameraConstBuffer);
 
-		wnd.context->Map(objectConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
-		memcpy(msr.pData, &spiralWorldMatrix, sizeof(XMFLOAT4X4));
-		wnd.context->Unmap(objectConstBuffer, 0);
-
-		wnd.context->VSSetConstantBuffers(1, 1, &objectConstBuffer);
-
 		// Render each mesh
-		RenderMesh(&spiral, wnd.context);
-
-		wnd.context->Map(objectConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
-		memcpy(msr.pData, &cubeWorldMatrix, sizeof(XMFLOAT4X4));
-		wnd.context->Unmap(objectConstBuffer, 0);
-
-		wnd.context->VSSetConstantBuffers(1, 1, &objectConstBuffer);
-
-		wnd.context->PSSetShaderResources(0, 1, &wnd.dragonResourceView);
-		wnd.context->PSSetSamplers(0, 1, &wnd.dragonSamplerState);
-		RenderMesh(&cube, wnd.context);
+		RenderModel(&cube, wnd.context);
+		RenderModel(&spiral, wnd.context);
 
 		EndRender(&wnd);
 
@@ -483,11 +512,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		// Fixed framerate?
 	}
 
-	FreeMesh(&cube);
-	FreeMesh(&spiral);
+	FreeMesh(&cubeMesh);
+	FreeMesh(&spiralMesh);
 
 	SAFE_RELEASE(cameraConstBuffer);
 	SAFE_RELEASE(objectConstBuffer);
+
+	SAFE_RELEASE(dragonSamplerState);
+	SAFE_RELEASE(dragonResourceView);
+	SAFE_RELEASE(dragonTexture);
+
+	SAFE_RELEASE(pixelShaderBlank);
+	SAFE_RELEASE(pixelShader);
 
 	ShutDown(&wnd);
 
@@ -568,8 +604,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		wnd.device->CreateDepthStencilView(wnd.depthStencil, &dsvDesc, &wnd.depthStencilView);
 
-		XMStoreFloat4x4(&projectionMatrix, XMMatrixTranspose(XMMatrixPerspectiveFovLH(fov, (float)swapchainDesc.BufferDesc.Width / (float)swapchainDesc.BufferDesc.Height, nearPlane, farPlane)));
-		defaultCamera.projectionMatrix = projectionMatrix;
+		width = swapchainDesc.BufferDesc.Width;
+		height = swapchainDesc.BufferDesc.Height;
 	} break;
 	}
 	return DefWindowProc(hWnd, message, wParam, lParam);

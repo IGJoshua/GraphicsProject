@@ -1,10 +1,6 @@
 #pragma once
 
-#include <d3d11.h>
-
 #include "defines.h"
-
-#include "vertex.h"
 
 struct mesh
 {
