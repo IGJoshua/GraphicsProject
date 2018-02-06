@@ -73,8 +73,6 @@ struct D3D11Window
 
 D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned int height)
 {
-	// ****************** BEGIN WARNING ***********************// 
-	// WINDOWS CODE, I DON'T TEACH THIS YOU MUST KNOW IT ALREADY! 
 	D3D11Window wnd = {};
 
 	wnd.application = hinst;
@@ -99,7 +97,6 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 		NULL, NULL, wnd.application, &wnd);
 
 	ShowWindow(wnd.window, SW_SHOW);
-	//********************* END WARNING ************************//
 
 	DXGI_SWAP_CHAIN_DESC swapchainDesc;
 	ZeroMemory(&swapchainDesc, sizeof(swapchainDesc));
@@ -305,15 +302,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 0.0f }, {} },
 		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 1.0f }, {} },
 
-		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 1.0f }, {} }, // 16
-		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 0.0f }, {} },
-		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 0.0f }, {} },
-		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 1.0f }, {} },
+		{ { -0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f }, green,  { 0.0f, 1.0f }, {} }, // 16
+		{ { -0.5f,  0.5f,  0.5f, 1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f }, green,  { 0.0f, 0.0f }, {} },
+		{ {  0.5f,  0.5f,  0.5f, 1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f }, green,  { 1.0f, 0.0f }, {} },
+		{ {  0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f }, green,  { 1.0f, 1.0f }, {} },
 
-		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 1.0f }, {} }, // 20
-		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 0.0f, 0.0f }, {} },
-		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 0.0f }, {} },
-		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f }, green,  { 1.0f, 1.0f }, {} },
+		{ { -0.5f, -0.5f,  0.5f, 1.0f }, { 0.0f, -1.0f, 0.0f, 0.0f }, green,  { 0.0f, 1.0f }, {} }, // 20
+		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { 0.0f, -1.0f, 0.0f, 0.0f }, green,  { 0.0f, 0.0f }, {} },
+		{ {  0.5f, -0.5f, -0.5f, 1.0f }, { 0.0f, -1.0f, 0.0f, 0.0f }, green,  { 1.0f, 0.0f }, {} },
+		{ {  0.5f, -0.5f,  0.5f, 1.0f }, { 0.0f, -1.0f, 0.0f, 0.0f }, green,  { 1.0f, 1.0f }, {} },
 	};
 
 	unsigned int cubeIndices[] = {
@@ -432,6 +429,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	lights lightsToVRAM = {};
 	lightsToVRAM.ambientLightColor = { 0.1f, 0.24f, 0.4f, 1.0f };
+	lightsToVRAM.directionalLightColor = { 1.0f, 1.0f, 0.98f, 1.0f };
+	lightsToVRAM.directionalLightNormal = { 1.0f, -1.0f, 0.5f, 0.0f };
+
+	lightsToVRAM.pointLights[0].lightColor = { 1.0f, 0.0f, 1.0f };
+	lightsToVRAM.pointLights[0].lightPosition = { 0.0f, 2.0f, 0.0f, 1.0f };
+	lightsToVRAM.pointLights[0].lightRadius = 10.0f;
 
 	ZeroMemory(&constBufferDesc, sizeof(constBufferDesc));
 	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
@@ -645,8 +648,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 		// Render each mesh
 		RenderModel(&cube, wnd.context);
-		RenderModel(&spiral, wnd.context);
 		RenderModel(&stonehenge, wnd.context);
+		
+		RenderModel(&spiral, wnd.context);
 
 		EndRender(&wnd);
 

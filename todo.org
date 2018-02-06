@@ -9,5 +9,7 @@
 * TODO Shader that changes how things appear based on position and time?
 * DONE Generate an OBJ with the tool to render a complex mesh
   CLOSED: [2018-02-03 Sat 18:41]
-* TODO Directional light to complex mesh
-* TODO 2 lights same geometry
+* DONE Directional light to complex mesh
+  CLOSED: [2018-02-06 Tue 15:49]
+* DONE 2 lights same geometry
+  CLOSED: [2018-02-06 Tue 15:49]
