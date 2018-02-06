@@ -346,7 +346,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	texDesc.Height = greendragon_height;
 	texDesc.MipLevels = greendragon_numlevels;
 	texDesc.ArraySize = 1;
-	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	texDesc.SampleDesc.Count = 1;
 	texDesc.Usage = D3D11_USAGE_IMMUTABLE;
 	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -373,7 +373,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
 	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	srvDesc.Texture2D.MipLevels = greendragon_numlevels;
 	srvDesc.Buffer.ElementOffset = 0;
 	srvDesc.Buffer.ElementWidth = sizeof(unsigned int);
