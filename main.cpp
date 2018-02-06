@@ -188,7 +188,7 @@ void InitRender(D3D11Window *wnd)
 
 	wnd->context->RSSetViewports(1, &wnd->viewport);
 
-	const float black[4] = { 0.25f, 0.6f, 1.0f, 1.0f };//{ 0.3f, 0.8f, 0.3f, 1.0f };
+	const float black[4] = { 0.125f, 0.3f, 0.5f, 1.0f };
 	wnd->context->ClearRenderTargetView(wnd->renderTargetView, black);
 
 	wnd->context->IASetInputLayout(wnd->inputLayout);
@@ -424,17 +424,35 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	ID3D11Buffer *objectConstBuffer;
 	wnd.device->CreateBuffer(&constBufferDesc, NULL, &objectConstBuffer);
 
+	ZeroMemory(&constBufferDesc, sizeof(constBufferDesc));
+	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	constBufferDesc.ByteWidth = sizeof(XMFLOAT4);
+
+	ID3D11Buffer *timeConstBuffer;
+	XMFLOAT4 timeFloats = { (float)timer.TotalTimeExact(), 0, 0, 0 };
+	D3D11_SUBRESOURCE_DATA timeSRD = {};
+	timeSRD.pSysMem = &timeFloats;
+	wnd.device->CreateBuffer(&constBufferDesc, &timeSRD, &timeConstBuffer);
+
 	// =========================
 	// Define lights
 
 	lights lightsToVRAM = {};
-	lightsToVRAM.ambientLightColor = { 0.1f, 0.24f, 0.4f, 1.0f };
-	lightsToVRAM.directionalLightColor = { 1.0f, 1.0f, 0.98f, 1.0f };
+	lightsToVRAM.ambientLightColor = { 0.025f, 0.01f, 0.1f, 1.0f };
+	lightsToVRAM.directionalLightColor = { 0.4f, 0.4f, 0.39f, 1.0f };
 	lightsToVRAM.directionalLightNormal = { 1.0f, -1.0f, 0.5f, 0.0f };
 
-	lightsToVRAM.pointLights[0].lightColor = { 1.0f, 0.0f, 1.0f };
-	lightsToVRAM.pointLights[0].lightPosition = { 0.0f, 2.0f, 0.0f, 1.0f };
-	lightsToVRAM.pointLights[0].lightRadius = 10.0f;
+	lightsToVRAM.pointLights[0].lightColor = { 1.0f, 0.0f, 0.0f };
+	lightsToVRAM.pointLights[0].lightPosition = { -3.0f, 2.0f, -3.0f, 1.0f };
+	lightsToVRAM.pointLights[0].lightRadius = 20.0f;
+
+	lightsToVRAM.spotLights[0].lightPosition = { -5.0f, 2.0f, 2.0f, 1.0f };
+	lightsToVRAM.spotLights[0].lightNormal = { 2.0f, -1.0f, 0.5f, 0.0f };
+	lightsToVRAM.spotLights[0].lightColor = { 0.2f, 1.0f, 1.0f, 1.0f };
+	lightsToVRAM.spotLights[0].innerRadius = 0.9f;
+	lightsToVRAM.spotLights[0].outerRadius = 0.8f;
 
 	ZeroMemory(&constBufferDesc, sizeof(constBufferDesc));
 	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
@@ -543,9 +561,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	cube.transformBuffer = objectConstBuffer;
 	stonehenge.transformBuffer = objectConstBuffer;
 
-	// ======================================
-	// Create Lights
-
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)
 	{
@@ -649,6 +664,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		// Render each mesh
 		RenderModel(&cube, wnd.context);
 		RenderModel(&stonehenge, wnd.context);
+
+		timeFloats.x = timer.TotalTime();
+		wnd.context->Map(timeConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
+		memcpy(msr.pData, &timeFloats, sizeof(timeFloats));
+		wnd.context->Unmap(timeConstBuffer, 0);
+		wnd.context->PSSetConstantBuffers(2, 1, &timeConstBuffer);
 		
 		RenderModel(&spiral, wnd.context);
 
@@ -665,6 +686,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	SAFE_RELEASE(lightsConstBuffer);
 	SAFE_RELEASE(cameraConstBuffer);
 	SAFE_RELEASE(objectConstBuffer);
+	SAFE_RELEASE(timeConstBuffer);
 
 	SAFE_RELEASE(dragonSamplerState);
 	SAFE_RELEASE(dragonResourceView);

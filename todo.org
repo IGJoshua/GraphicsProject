@@ -6,7 +6,8 @@
   CLOSED: [2018-02-03 Sat 16:20]
 * DONE Refactor to have camera be a separate entity
   CLOSED: [2018-02-03 Sat 17:11]
-* TODO Shader that changes how things appear based on position and time?
+* DONE Shader that changes how things appear based on position and time?
+  CLOSED: [2018-02-06 Tue 17:50]
 * DONE Generate an OBJ with the tool to render a complex mesh
   CLOSED: [2018-02-03 Sat 18:41]
 * DONE Directional light to complex mesh
