@@ -15,7 +15,7 @@ struct SPOT_LIGHT
 	float2 padding;
 };
 
-cbuffer LIGHTS : register( b2 )
+cbuffer LIGHTS : register( b0 )
 {
 	POINT_LIGHT pointLights[16];
 	SPOT_LIGHT spotLights[4];
@@ -42,6 +42,7 @@ float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : N
 	returnColor = lerp(returnColor, albedoColor, albedoColor.w);
 
 	// Calculate light for the pixel coord
+	returnColor *= ambientLightColor;
 
 	return returnColor;
 }

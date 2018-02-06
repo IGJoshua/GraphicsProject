@@ -58,7 +58,7 @@ struct D3D11Window
 	ID3D11DepthStencilView *depthStencilView;
 
 	IDXGISwapChain *swapchain;
-	ID3D11Resource * pBB;
+	ID3D11Resource *pBB;
 
 	D3D11_VIEWPORT viewport;
 
@@ -191,7 +191,7 @@ void InitRender(D3D11Window *wnd)
 
 	wnd->context->RSSetViewports(1, &wnd->viewport);
 
-	const float black[4] = { 0.3f, 0.8f, 0.3f, 1.0f };
+	const float black[4] = { 0.25f, 0.6f, 1.0f, 1.0f };//{ 0.3f, 0.8f, 0.3f, 1.0f };
 	wnd->context->ClearRenderTargetView(wnd->renderTargetView, black);
 
 	wnd->context->IASetInputLayout(wnd->inputLayout);
@@ -427,12 +427,29 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	ID3D11Buffer *objectConstBuffer;
 	wnd.device->CreateBuffer(&constBufferDesc, NULL, &objectConstBuffer);
 
-	int pyramidVertCount = 1457;
-	SIMPLE_VERTEX *pyramidVerts = new SIMPLE_VERTEX[pyramidVertCount];
+	// =========================
+	// Define lights
+
+	lights lightsToVRAM = {};
+	lightsToVRAM.ambientLightColor = { 0.1f, 0.24f, 0.4f, 1.0f };
+
+	ZeroMemory(&constBufferDesc, sizeof(constBufferDesc));
+	constBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	constBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	constBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	constBufferDesc.ByteWidth = sizeof(lights);
+
+	D3D11_SUBRESOURCE_DATA srd2;
+	srd2.pSysMem = &lightsToVRAM;
+	ID3D11Buffer *lightsConstBuffer;
+	wnd.device->CreateBuffer(&constBufferDesc, &srd2, &lightsConstBuffer);
+
+	int stonehengeVertCount = 1457;
+	SIMPLE_VERTEX *stonehengeVerts = new SIMPLE_VERTEX[stonehengeVertCount];
 
 	XMFLOAT4 red = { 1.0, 0.0, 0.0, 1.0 };
 
-	for (int i = 0; i < pyramidVertCount; ++i)
+	for (int i = 0; i < stonehengeVertCount; ++i)
 	{
 		SIMPLE_VERTEX temp;
 		temp.position = { StoneHenge_data[i].pos[0] / 2, StoneHenge_data[i].pos[1] / 2, StoneHenge_data[i].pos[2] / 2, 1.0f };
@@ -440,22 +457,22 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		temp.normal = { StoneHenge_data[i].nrm[0], StoneHenge_data[i].nrm[1], StoneHenge_data[i].nrm[2], 0.0f };
 		temp.uv = { StoneHenge_data[i].uvw[0], StoneHenge_data[i].uvw[1] };
 		temp.padding = { 0.0f, 0.0f };
-		pyramidVerts[i] = temp;
+		stonehengeVerts[i] = temp;
 	}
 
-	int pyramidIndexCount = 2532;
-	unsigned int *pyramidIndices = new unsigned int[pyramidIndexCount];
+	int stonehengeIndexCount = 2532;
+	unsigned int *stonehengeIndices = new unsigned int[stonehengeIndexCount];
 
-	memcpy(pyramidIndices, StoneHenge_indicies, pyramidIndexCount * sizeof(unsigned int));
+	memcpy(stonehengeIndices, StoneHenge_indicies, stonehengeIndexCount * sizeof(unsigned int));
 
-	mesh pyramidMesh = CreateMeshIndexed(wnd.device, pyramidVerts, pyramidVertCount, pyramidIndices, pyramidIndexCount, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	mesh stonehengeMesh = CreateMeshIndexed(wnd.device, stonehengeVerts, stonehengeVertCount, stonehengeIndices, stonehengeIndexCount, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	delete[] pyramidVerts;
-	delete[] pyramidIndices;
+	delete[] stonehengeVerts;
+	delete[] stonehengeIndices;
 
-	model pyramid;
+	model stonehenge;
 
-	// Texture for pyramid
+	// Texture for stonehenge
 	ZeroMemory(&sampDesc, sizeof(sampDesc));
 	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -464,8 +481,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	sampDesc.MinLOD = 0;
 	sampDesc.MaxLOD = StoneHenge_numlevels;
 
-	ID3D11SamplerState *pyramidSamplerState;
-	wnd.device->CreateSamplerState(&sampDesc, &pyramidSamplerState);
+	ID3D11SamplerState *stonehengeSamplerState;
+	wnd.device->CreateSamplerState(&sampDesc, &stonehengeSamplerState);
 
 	// Load the cube texture
 	ZeroMemory(&texDesc, sizeof(texDesc));
@@ -497,6 +514,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	delete[] stonehenge_converted;
 
+	// ===============================
+	// Shader Resource View
+
 	ZeroMemory(&srvDesc, sizeof(srvDesc));
 	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
 	srvDesc.Texture2D.MipLevels = StoneHenge_numlevels;
@@ -504,18 +524,24 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	srvDesc.Buffer.ElementWidth = sizeof(unsigned int);
 	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 
-	ID3D11ShaderResourceView *pyramidResourceView;
-	wnd.device->CreateShaderResourceView(stonehengeTexture, &srvDesc, &pyramidResourceView);
+	ID3D11ShaderResourceView *stonehengeResourceView;
+	wnd.device->CreateShaderResourceView(stonehengeTexture, &srvDesc, &stonehengeResourceView);
 
-	pyramid.mesh = &pyramidMesh;
-	pyramid.pixelShader = pixelShader;
-	pyramid.shaderResourceView = pyramidResourceView;
-	XMStoreFloat4x4(&pyramid.transform, XMMatrixTranspose(XMMatrixTranslation(-2.3f, -1.7f, 0.9f)));
-	pyramid.textureSampler = pyramidSamplerState;
+	stonehenge.mesh = &stonehengeMesh;
+	stonehenge.pixelShader = pixelShader;
+	stonehenge.shaderResourceView = stonehengeResourceView;
+	XMStoreFloat4x4(&stonehenge.transform, XMMatrixTranspose(XMMatrixTranslation(-2.3f, -1.7f, 0.9f)));
+	stonehenge.textureSampler = stonehengeSamplerState;
+
+	// =======================================
+	// Set standard const buffer locations
 
 	spiral.transformBuffer = objectConstBuffer;
 	cube.transformBuffer = objectConstBuffer;
-	pyramid.transformBuffer = objectConstBuffer;
+	stonehenge.transformBuffer = objectConstBuffer;
+
+	// ======================================
+	// Create Lights
 
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)
@@ -611,10 +637,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 		wnd.context->VSSetConstantBuffers(0, 1, &cameraConstBuffer);
 
+		wnd.context->Map(lightsConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
+		memcpy(msr.pData, &lightsToVRAM, sizeof(lights));
+		wnd.context->Unmap(lightsConstBuffer, 0);
+
+		wnd.context->PSSetConstantBuffers(0, 1, &lightsConstBuffer);
+
 		// Render each mesh
 		RenderModel(&cube, wnd.context);
 		RenderModel(&spiral, wnd.context);
-		RenderModel(&pyramid, wnd.context);
+		RenderModel(&stonehenge, wnd.context);
 
 		EndRender(&wnd);
 
@@ -624,8 +656,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	FreeMesh(&cubeMesh);
 	FreeMesh(&spiralMesh);
-	FreeMesh(&pyramidMesh);
+	FreeMesh(&stonehengeMesh);
 
+	SAFE_RELEASE(lightsConstBuffer);
 	SAFE_RELEASE(cameraConstBuffer);
 	SAFE_RELEASE(objectConstBuffer);
 
@@ -633,8 +666,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	SAFE_RELEASE(dragonResourceView);
 	SAFE_RELEASE(dragonTexture);
 
-	SAFE_RELEASE(pyramidSamplerState);
-	SAFE_RELEASE(pyramidResourceView);
+	SAFE_RELEASE(stonehengeSamplerState);
+	SAFE_RELEASE(stonehengeResourceView);
 	SAFE_RELEASE(stonehengeTexture);
 
 	SAFE_RELEASE(pixelShaderBlank);
@@ -644,6 +677,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	return 0;
 }
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	if (GetAsyncKeyState(VK_ESCAPE))
