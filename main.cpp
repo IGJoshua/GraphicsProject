@@ -573,6 +573,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 		timer.Signal();
 
+		double delta = timer.Delta();
+
 		// Input (and message handling)
 
 		// Update
@@ -633,6 +635,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 			if (viewCamera.nearPlane > viewCamera.farPlane - 0.1f) viewCamera.nearPlane = viewCamera.farPlane - 0.1f;
 		}
 
+		float s = sin(timer.TotalTime());
+		float c = cos(timer.TotalTime());
+
+		lightsToVRAM.pointLights[0].lightPosition.x = s * -5;
+		lightsToVRAM.pointLights[0].lightPosition.z = c * -5;
+
+		lightsToVRAM.spotLights[0].lightPosition.x = s * 5;
+		lightsToVRAM.spotLights[0].lightPosition.z = c * 5;
+		lightsToVRAM.spotLights[0].lightNormal.x = c;
+		lightsToVRAM.spotLights[0].lightNormal.z = s;
+
+		lightsToVRAM.directionalLightNormal.x = s;
+		lightsToVRAM.directionalLightNormal.z = c;
+
 		// Render
 		InitRender(&wnd);
 
@@ -665,7 +681,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		RenderModel(&cube, wnd.context);
 		RenderModel(&stonehenge, wnd.context);
 
-		timeFloats.x = timer.TotalTime();
+		timeFloats.x = (float)timer.TotalTime();
 		wnd.context->Map(timeConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
 		memcpy(msr.pData, &timeFloats, sizeof(timeFloats));
 		wnd.context->Unmap(timeConstBuffer, 0);

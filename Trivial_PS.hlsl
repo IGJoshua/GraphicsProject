@@ -53,15 +53,6 @@ float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : N
 	float4 pointLightColor = lightRatio * float4(pointLights[0].lightColor, 1.0f) * pointLightAttenuation;
 
 	// Spot light
-	/*
-	float4 spotLightDirection = normalize(spotLights[0].lightPosition - worldPosition);
-	float4 spotSurfaceRatio = saturate(dot(-spotLightDirection, normalize(spotLights[0].lightNormal)));
-	float4 spotFactor = 1 - saturate((spotLights[0].innerRadius - spotSurfaceRatio) / (spotLights[0].innerRadius - spotLights[0].outerRadius));
-	spotFactor *= spotFactor;
-	float4 spotLightRatio = saturate(dot(spotLightDirection, normalFromRasterizer));
-	float4 spotLightColor = spotFactor * spotLightRatio * spotLights[0].lightColor;
-	*/
-
 	float4 spotToFrag = normalize(worldPosition - spotLights[0].lightPosition);
 	float normalAttenuation = saturate(dot(normalFromRasterizer, -spotToFrag));
 	float coneAttenuation = 1.0f - saturate((spotLights[0].innerRadius - dot(normalize(spotLights[0].lightNormal), spotToFrag)) / (spotLights[0].innerRadius - spotLights[0].outerRadius));
