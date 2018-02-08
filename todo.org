@@ -1,16 +1,46 @@
-* DONE Draw procedurally-generated 3d line-mesh (Probably a spiral)
+* Milestone I
+** DONE Draw procedurally-generated 3d line-mesh (Probably a spiral)
   CLOSED: [2018-02-01 Thu 00:17]
-* DONE texture geometry
+** DONE texture geometry
   CLOSED: [2018-02-01 Thu 16:55]
-* DONE Refactor to have a model abstraction that supports textures
+** DONE Refactor to have a model abstraction that supports textures
   CLOSED: [2018-02-03 Sat 16:20]
-* DONE Refactor to have camera be a separate entity
+** DONE Refactor to have camera be a separate entity
   CLOSED: [2018-02-03 Sat 17:11]
-* DONE Shader that changes how things appear based on position and time?
+** DONE Shader that changes how things appear based on position and time?
   CLOSED: [2018-02-06 Tue 17:50]
-* DONE Generate an OBJ with the tool to render a complex mesh
+** DONE Generate an OBJ with the tool to render a complex mesh
   CLOSED: [2018-02-03 Sat 18:41]
-* DONE Directional light to complex mesh
+** DONE Directional light to complex mesh
   CLOSED: [2018-02-06 Tue 15:49]
-* DONE 2 lights same geometry
-  CLOSED: [2018-02-06 Tue 15:49]
+** DONE 2 lights same geometry
+  CLOSED: [2018-02-06 Tue 15:
+* Milestone II
+** High Priority
+*** TODO Geometry Instancing PT: 4-3
+*** TODO Shader-based Billboards PT: 4-3
+*** TODO Sinewave-based moving item PT: 3-2
+*** TODO Cubemap Reflection  PT: 3-2
+** Medium Priority
+*** TODO Shadow Mapping
+*** TODO Normal Mapping
+*** TODO Use a Stencil Buffer
+*** TODO Indexed model loading (OBJ Loader)
+*** Render to Texture
+*** Multiple viewports
+*** Hardware tesselation
+*** Use the Compute shader for something (particle system physics, post proecessing, etc)
+*** Realtime reflections with dynamic cubemap rendertargets
+*** Transparent Blending with depth sorting
+** Low Priority
+*** Apply post process via pixel shader
+*** Glass/Water using refraction shader
+*** Command list built on another thread with a deffered context and then executed with immediate context
+** Low-hanging fruit
+*** TODO Change directional light 1pt
+*** TODO Change point lighting 1pt
+*** TODO Change spot light 1pt
+*** TODO Specular lights 2pt
+*** TODO Multitexturing 2pt
+*** TODO Skybox 3pt
+* Milestone III
