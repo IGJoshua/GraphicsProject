@@ -635,8 +635,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 			if (viewCamera.nearPlane > viewCamera.farPlane - 0.1f) viewCamera.nearPlane = viewCamera.farPlane - 0.1f;
 		}
 
-		float s = sin(timer.TotalTime());
-		float c = cos(timer.TotalTime());
+		float s = (float)sin(timer.TotalTime());
+		float c = (float)cos(timer.TotalTime());
 
 		lightsToVRAM.pointLights[0].lightPosition.x = s * -5;
 		lightsToVRAM.pointLights[0].lightPosition.z = c * -5;
@@ -648,6 +648,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 		lightsToVRAM.directionalLightNormal.x = s;
 		lightsToVRAM.directionalLightNormal.z = c;
+
+		lightsToVRAM.cameraWorldPosition = viewCamera.position;
 
 		// Render
 		InitRender(&wnd);

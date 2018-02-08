@@ -31,4 +31,6 @@ struct lights
 	XMFLOAT4 directionalLightColor;
 
 	XMFLOAT4 ambientLightColor;
+
+	XMFLOAT4 cameraWorldPosition;
 };

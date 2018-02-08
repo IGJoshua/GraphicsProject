@@ -1,3 +1,5 @@
+#include "Functions.hlsli"
+
 struct POINT_LIGHT
 {
 	float4 lightPosition;
@@ -24,11 +26,14 @@ cbuffer LIGHTS : register( b0 )
 	float4 directionalLightColor;
 
 	float4 ambientLightColor;
+
+	float4 cameraWorldPos;
 }
 
 texture2D albedoMap : register( t0 );
-texture2D normalMap : register( t1 );
-texture2D specularMap : register( t2 );
+texture2D albedoMap2 : register( t1 );
+texture2D normalMap : register( t2 );
+texture2D specularMap : register( t3 );
 
 SamplerState MeshTextureSampler : register( s0 );
 
@@ -37,7 +42,7 @@ float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : N
 	float4 returnColor = (float4)0;
 
 	// Calculate the texture color for the pixel coord
-	float4 albedoColor = albedoMap.Sample(MeshTextureSampler, uvFromRasterizer);
+	float4 albedoColor = albedoMap.Sample(MeshTextureSampler, uvFromRasterizer) + albedoMap2.Sample(MeshTextureSampler, uvFromRasterizer);
 	albedoColor = lerp(colorFromRasterizer, albedoColor, albedoColor.w);
 
 	// Calculate light for the pixel coord
@@ -62,7 +67,17 @@ float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : N
 
 	float4 totalLight = saturate(directionalLight + ambientLight + pointLightColor + spotLightColor);
 
-	returnColor = totalLight * albedoColor;
+	float4 lambertColor = totalLight * albedoColor;
+
+	float specularPow = 256;
+	float specularIntensity = 0.7;
+
+	float4 specularViewDir = normalize(cameraWorldPos - worldPosition);
+	float4 specularHalfVector = normalize(normalize(-directionalLightNormal) + specularViewDir);
+	float intensity = max(pow(saturate(dot(normalFromRasterizer, specularHalfVector)), specularPow), 0);
+	float4 specularColor = directionalLightColor * specularIntensity * intensity;
+
+	returnColor = lambertColor + specularColor;
 
 	return saturate(returnColor);
 }
