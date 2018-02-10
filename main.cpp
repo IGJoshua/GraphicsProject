@@ -63,8 +63,6 @@ struct D3D11Window
 	D3D11_VIEWPORT viewport;
 
 	ID3D11InputLayout *inputLayout;
-
-	ID3D11VertexShader *vertShader;
 };
 
 //************************************************************
@@ -131,8 +129,6 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 	wnd.viewport.Width = (float)swapchainDesc.BufferDesc.Width;
 	wnd.viewport.Height = (float)swapchainDesc.BufferDesc.Height;
 
-	wnd.device->CreateVertexShader(&Trivial_VS, ARRAYSIZE(Trivial_VS), NULL, &wnd.vertShader);
-
 	D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -192,8 +188,6 @@ void InitRender(D3D11Window *wnd)
 	wnd->context->ClearRenderTargetView(wnd->renderTargetView, black);
 
 	wnd->context->IASetInputLayout(wnd->inputLayout);
-
-	wnd->context->VSSetShader(wnd->vertShader, NULL, NULL);
 }
 
 void EndRender(D3D11Window *wnd)
@@ -216,7 +210,6 @@ bool ShutDown(D3D11Window *wnd)
 	SAFE_RELEASE(wnd->pBB);
 	SAFE_RELEASE(wnd->swapchain);
 	SAFE_RELEASE(wnd->inputLayout);
-	SAFE_RELEASE(wnd->vertShader);
 	SAFE_RELEASE(wnd->renderTargetView);
 	SAFE_RELEASE(wnd->context);
 	SAFE_RELEASE(wnd->device);
@@ -272,9 +265,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	ID3D11PixelShader *pixelShaderBlank;
 	wnd.device->CreatePixelShader(psBlank, ARRAYSIZE(psBlank), NULL, &pixelShaderBlank);
 
+	ID3D11VertexShader *vertShader;
+	wnd.device->CreateVertexShader(&Trivial_VS, ARRAYSIZE(Trivial_VS), NULL, &vertShader);
+
 	model spiral;
 	spiral.mesh = &spiralMesh;
 	spiral.pixelShader = pixelShaderBlank;
+	spiral.vertexShader = vertShader;
 	spiral.shaderResourceView = NULL;
 	spiral.transform = spiralWorldMatrix;
 
@@ -384,6 +381,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	model cube;
 	cube.mesh = &cubeMesh;
+	cube.vertexShader = vertShader;
 	cube.pixelShader = pixelShader;
 	cube.shaderResourceView = dragonResourceView;
 	cube.textureSampler = dragonSamplerState;
@@ -549,6 +547,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	wnd.device->CreateShaderResourceView(stonehengeTexture, &srvDesc, &stonehengeResourceView);
 
 	stonehenge.mesh = &stonehengeMesh;
+	stonehenge.vertexShader = vertShader;
 	stonehenge.pixelShader = pixelShader;
 	stonehenge.shaderResourceView = stonehengeResourceView;
 	XMStoreFloat4x4(&stonehenge.transform, XMMatrixTranspose(XMMatrixTranslation(-2.3f, -1.7f, 0.9f)));
@@ -714,6 +713,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	SAFE_RELEASE(stonehengeResourceView);
 	SAFE_RELEASE(stonehengeTexture);
 
+	SAFE_RELEASE(vertShader);
 	SAFE_RELEASE(pixelShaderBlank);
 	SAFE_RELEASE(pixelShader);
 

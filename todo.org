@@ -37,10 +37,14 @@
 *** Glass/Water using refraction shader
 *** Command list built on another thread with a deffered context and then executed with immediate context
 ** Low-hanging fruit
-*** TODO Change directional light 1pt
-*** TODO Change point lighting 1pt
-*** TODO Change spot light 1pt
-*** TODO Specular lights 2pt
+*** DONE Change directional light 1pt
+    CLOSED: [2018-02-08 Thu 15:21]
+*** DONE Change point lighting 1pt
+    CLOSED: [2018-02-08 Thu 15:21]
+*** DONE Change spot light 1pt
+    CLOSED: [2018-02-08 Thu 15:21]
+*** DONE Specular lights 2pt
+    CLOSED: [2018-02-08 Thu 17:26]
 *** TODO Multitexturing 2pt
 *** TODO Skybox 3pt
 * Milestone III

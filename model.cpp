@@ -2,6 +2,8 @@
 
 void RenderModel(model *m, ID3D11DeviceContext *context)
 {
+	context->VSSetShader(m->vertexShader, NULL, NULL);
+
 	context->PSSetShader(m->pixelShader, NULL, NULL);
 	if (m->shaderResourceView)
 	{
