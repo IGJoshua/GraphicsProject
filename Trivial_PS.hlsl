@@ -52,6 +52,7 @@ float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : N
 
 	float4 pointDirection = float4((worldPosition - pointLights[0].lightPosition).xyz, 0.0);
 	specularColor += CalculateSpecularLight(pointDirection, float4(pointLights[0].lightColor, 1.0), worldPosition, normalFromRasterizer, cameraWorldPos);
+	specularColor *= specularMap.Sample(MeshTextureSampler, uvFromRasterizer);
 
 	returnColor = lambertColor + specularColor;
 

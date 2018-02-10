@@ -11,6 +11,7 @@ using namespace std;
 
 #include "greendragon.h"
 #include "StoneHenge_Texture.h"
+#include "StoneHengeSpecular.h"
 #include "StoneHenge.h"
 
 #include "scene.h"
@@ -268,11 +269,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	ID3D11VertexShader *vertShader;
 	wnd.device->CreateVertexShader(&Trivial_VS, ARRAYSIZE(Trivial_VS), NULL, &vertShader);
 
-	model spiral;
+	model spiral = {};
 	spiral.mesh = &spiralMesh;
 	spiral.pixelShader = pixelShaderBlank;
 	spiral.vertexShader = vertShader;
-	spiral.shaderResourceView = NULL;
 	spiral.transform = spiralWorldMatrix;
 
 	delete[] spiralVerts;
@@ -365,26 +365,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	delete[] greendragon_converted;
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	srvDesc.Texture2D.MipLevels = greendragon_numlevels;
-	srvDesc.Buffer.ElementOffset = 0;
-	srvDesc.Buffer.ElementWidth = sizeof(unsigned int);
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-
-	ID3D11ShaderResourceView *dragonResourceView;
-	wnd.device->CreateShaderResourceView(dragonTexture, &srvDesc, &dragonResourceView);
-
 	ID3D11PixelShader *pixelShader;
 	wnd.device->CreatePixelShader(Trivial_PS, ARRAYSIZE(Trivial_PS), NULL, &pixelShader);
 
-	model cube;
+	model cube = {};
 	cube.mesh = &cubeMesh;
 	cube.vertexShader = vertShader;
 	cube.pixelShader = pixelShader;
-	cube.shaderResourceView = dragonResourceView;
 	cube.textureSampler = dragonSamplerState;
+
+	ID3D11Texture2D *textures[4] = {};
+	textures[0] = dragonTexture;
+	CreateTextureResourceViews(wnd.device, &cube, textures);
 
 	XMFLOAT4X4 cubeWorldMatrix;
 	XMStoreFloat4x4(&cubeWorldMatrix, XMMatrixTranspose(XMMatrixTranslation(-2, 0, 1)));
@@ -489,8 +481,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	delete[] stonehengeVerts;
 	delete[] stonehengeIndices;
 
-	model stonehenge;
-
 	// Texture for stonehenge
 	ZeroMemory(&sampDesc, sizeof(sampDesc));
 	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -503,7 +493,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	ID3D11SamplerState *stonehengeSamplerState;
 	wnd.device->CreateSamplerState(&sampDesc, &stonehengeSamplerState);
 
-	// Load the cube texture
+	// Load the stonehenge texture
 	ZeroMemory(&texDesc, sizeof(texDesc));
 	texDesc.Width = StoneHenge_width;
 	texDesc.Height = StoneHenge_height;
@@ -533,25 +523,50 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	delete[] stonehenge_converted;
 
+	ZeroMemory(&texDesc, sizeof(texDesc));
+	texDesc.Width = StoneHengeSpecular_width;
+	texDesc.Height = StoneHengeSpecular_height;
+	texDesc.MipLevels = StoneHengeSpecular_numlevels;
+	texDesc.ArraySize = 1;
+	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+	// Convert the texture
+	unsigned int *stonehengespecular_converted = new unsigned int[StoneHengeSpecular_numpixels];
+	for (unsigned int i = 0; i < StoneHengeSpecular_numpixels; ++i)
+	{
+		stonehengespecular_converted[i] = colorTGAConversion(StoneHengeSpecular_pixels[i]);
+	}
+
+	for (int i = 0; i < 10; ++i)
+	{
+		ZeroMemory(&srd[i], sizeof(srd[i]));
+		srd[i].pSysMem = stonehengespecular_converted + StoneHengeSpecular_leveloffsets[i];
+		srd[i].SysMemPitch = (UINT)(StoneHengeSpecular_width >> i) * sizeof(unsigned int);
+	}
+
+	ID3D11Texture2D *stonehengeSpecularMap;
+	wnd.device->CreateTexture2D(&texDesc, srd, &stonehengeSpecularMap);
+
+	delete[] stonehengespecular_converted;
+
 	// ===============================
 	// Shader Resource View
+	textures[0] = NULL;
 
-	ZeroMemory(&srvDesc, sizeof(srvDesc));
-	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-	srvDesc.Texture2D.MipLevels = StoneHenge_numlevels;
-	srvDesc.Buffer.ElementOffset = 0;
-	srvDesc.Buffer.ElementWidth = sizeof(unsigned int);
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	textures[0] = stonehengeTexture;
+	textures[3] = stonehengeSpecularMap;
 
-	ID3D11ShaderResourceView *stonehengeResourceView;
-	wnd.device->CreateShaderResourceView(stonehengeTexture, &srvDesc, &stonehengeResourceView);
-
+	model stonehenge = {};
 	stonehenge.mesh = &stonehengeMesh;
 	stonehenge.vertexShader = vertShader;
 	stonehenge.pixelShader = pixelShader;
-	stonehenge.shaderResourceView = stonehengeResourceView;
 	XMStoreFloat4x4(&stonehenge.transform, XMMatrixTranspose(XMMatrixTranslation(-2.3f, -1.7f, 0.9f)));
 	stonehenge.textureSampler = stonehengeSamplerState;
+
+	CreateTextureResourceViews(wnd.device, &stonehenge, textures);
 
 	// =======================================
 	// Set standard const buffer locations
@@ -696,6 +711,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		// Fixed framerate?
 	}
 
+	FreeModel(&cube);
+	FreeModel(&spiral);
+	FreeModel(&stonehenge);
+
 	FreeMesh(&cubeMesh);
 	FreeMesh(&spiralMesh);
 	FreeMesh(&stonehengeMesh);
@@ -705,13 +724,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	SAFE_RELEASE(objectConstBuffer);
 	SAFE_RELEASE(timeConstBuffer);
 
-	SAFE_RELEASE(dragonSamplerState);
-	SAFE_RELEASE(dragonResourceView);
+	SAFE_RELEASE(cube.textureSampler);
 	SAFE_RELEASE(dragonTexture);
 
-	SAFE_RELEASE(stonehengeSamplerState);
-	SAFE_RELEASE(stonehengeResourceView);
+	SAFE_RELEASE(stonehenge.textureSampler);
 	SAFE_RELEASE(stonehengeTexture);
+	SAFE_RELEASE(stonehengeSpecularMap);
 
 	SAFE_RELEASE(vertShader);
 	SAFE_RELEASE(pixelShaderBlank);

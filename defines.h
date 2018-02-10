@@ -4,7 +4,7 @@
 #define global_variable static
 #define persistent_variable static
 
-#define SAFE_RELEASE(resource) if((resource)) { (resource)->Release(); (resource) = NULL; }
+#define SAFE_RELEASE(resource) if(resource != NULL) { resource->Release(); resource = NULL; }
 
 #include <DirectXMath.h>
 #include <d3d11.h>
