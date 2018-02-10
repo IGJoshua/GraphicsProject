@@ -1,22 +1,5 @@
 #include "Functions.hlsli"
 
-struct POINT_LIGHT
-{
-	float4 lightPosition;
-	float3 lightColor;
-	float  lightRadius;
-};
-
-struct SPOT_LIGHT
-{
-	float4 lightPosition;
-	float4 lightNormal;
-	float4 lightColor;
-	float outerRadius;
-	float innerRadius;
-	float2 padding;
-};
-
 cbuffer LIGHTS : register( b0 )
 {
 	POINT_LIGHT pointLights[16];
@@ -48,34 +31,27 @@ float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : N
 	// Calculate light for the pixel coord
 	float4 ambientLight = ambientLightColor * albedoColor;
 
-	float4 directionalLight = saturate(dot(normalize(-directionalLightNormal), normalFromRasterizer)) * directionalLightColor;
 
 	// Point light
-	float4 lightDirection = normalize(pointLights[0].lightPosition - worldPosition);
-	float4 lightRatio = saturate(dot(lightDirection, normalFromRasterizer));
-	float4 pointLightAttenuation = 1 - saturate(length(pointLights[0].lightPosition - worldPosition) / pointLights[0].lightRadius);
-	pointLightAttenuation *= pointLightAttenuation;
-	float4 pointLightColor = lightRatio * float4(pointLights[0].lightColor, 1.0f) * pointLightAttenuation;
+	float4 pointLightColor = CalculatePointLight(pointLights[0], worldPosition, normalFromRasterizer);
 
 	// Spot light
-	float4 spotToFrag = normalize(worldPosition - spotLights[0].lightPosition);
-	float normalAttenuation = saturate(dot(normalFromRasterizer, -spotToFrag));
-	float coneAttenuation = 1.0f - saturate((spotLights[0].innerRadius - dot(normalize(spotLights[0].lightNormal), spotToFrag)) / (spotLights[0].innerRadius - spotLights[0].outerRadius));
-	coneAttenuation *= coneAttenuation;
-	float lightAttenuation = normalAttenuation * coneAttenuation;
-	float4 spotLightColor = lightAttenuation * spotLights[0].lightColor;
+	float4 spotLightColor = CalculateSpotLight(spotLights[0], worldPosition, normalFromRasterizer);
+
+	float4 directionalLight = CalculateDirectionalLight(directionalLightNormal, directionalLightColor, normalFromRasterizer);
 
 	float4 totalLight = saturate(directionalLight + ambientLight + pointLightColor + spotLightColor);
 
 	float4 lambertColor = totalLight * albedoColor;
 
-	float specularPow = 256;
-	float specularIntensity = 0.7;
+	float4 specularColor = CalculateSpecularLight(directionalLightNormal, directionalLightColor, worldPosition, normalFromRasterizer, cameraWorldPos);
 
-	float4 specularViewDir = normalize(cameraWorldPos - worldPosition);
-	float4 specularHalfVector = normalize(normalize(-directionalLightNormal) + specularViewDir);
-	float intensity = max(pow(saturate(dot(normalFromRasterizer, specularHalfVector)), specularPow), 0);
-	float4 specularColor = directionalLightColor * specularIntensity * intensity;
+	float4 spotDirection = float4((worldPosition - spotLights[0].lightPosition).xyz, 0.0);
+	specularColor += CalculateSpecularLight(spotDirection, spotLights[0].lightColor, worldPosition, normalFromRasterizer, cameraWorldPos)
+		* saturate(dot(normalize(spotDirection), normalize(spotLights[0].lightNormal)) - 0.2);
+
+	float4 pointDirection = float4((worldPosition - pointLights[0].lightPosition).xyz, 0.0);
+	specularColor += CalculateSpecularLight(pointDirection, float4(pointLights[0].lightColor, 1.0), worldPosition, normalFromRasterizer, cameraWorldPos);
 
 	returnColor = lambertColor + specularColor;
 
