@@ -35,7 +35,8 @@ OUTPUT_VERTEX main( INPUT_VERTEX fromVertexBuffer )
 	OUTPUT_VERTEX sendToRasterizer = (OUTPUT_VERTEX)0;
 	
 	sendToRasterizer.localPosition = fromVertexBuffer.coordinate;
-	sendToRasterizer.worldPosition = mul(fromVertexBuffer.coordinate, worldMatrix);
+	sendToRasterizer.localPosition.y += sin(fromVertexBuffer.coordinate.z * 2 + totalTime) * cos(fromVertexBuffer.coordinate.x * 2 + totalTime);
+	sendToRasterizer.worldPosition = mul(sendToRasterizer.localPosition, worldMatrix);
 	sendToRasterizer.projectedCoordinate = mul(mul(sendToRasterizer.worldPosition, viewMatrix), projectionMatrix);
 	sendToRasterizer.colorOut = fromVertexBuffer.color;
 	sendToRasterizer.normal = mul(fromVertexBuffer.normal, worldMatrix);

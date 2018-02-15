@@ -24,6 +24,7 @@ using namespace std;
 
 #include "Trivial_VS.csh"
 #include "Trivial_PS.csh"
+#include "VSSineShader.csh"
 
 #include "psBlank.csh"
 #include "SkyboxPS.csh"
@@ -431,9 +432,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	// Define the camera
 	camera viewCamera;
-	viewCamera.position = { 0, 0, -3, 1 };
-	viewCamera.pitch = 0;
-	viewCamera.yaw = 0;
+	viewCamera.position = { 0, 5, -5, 1 };
+	viewCamera.pitch = 0.7f;
+	viewCamera.yaw = -0.2f;
 	viewCamera.fov = 90;
 	viewCamera.nearPlane = 0.1f;
 	viewCamera.farPlane = 1000;
@@ -660,22 +661,70 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	// =======================================
 	// Grid to undulate
-	/*
-	unsigned int gridWidth = 10;
-	unsigned int gridHeight = 10;
-	unsigned int gridVertCount = gridWidth * gridHeight;
-	unsigned int gridIndexCount = gridVertCount / 4 * 6;
-	unsigned int *gridIndices = new unsigned int[gridIndexCount];
-	for (unsigned int y = 0; y < gridHeight; ++y)
-	{
-		for (unsigned int x = 0; x < gridWidth; ++x)
-		{
-			// Make a vertex
-		}
-	}
+	unsigned int gridWidth = 5;
+	unsigned int gridHeight = 3;
+	unsigned int gridVertCount = (gridWidth + 1) * (gridHeight + 1);
+	unsigned int gridIndexCount = gridWidth * gridHeight * 6;
+	SIMPLE_VERTEX gridVerts[] = {
+		{ { 0.0f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.0f, 0.0f }, {} },
+		{ { 0.2f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.2f, 0.0f }, {} },
+		{ { 0.4f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.4f, 0.0f }, {} },
+		{ { 0.6f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.6f, 0.0f }, {} },
+		{ { 0.8f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.8f, 0.0f }, {} },
+		{ { 1.0f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 1.0f, 0.0f }, {} },
+
+		{ { 0.0f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.0f, 0.2f }, {} },
+		{ { 0.2f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.2f, 0.2f }, {} },
+		{ { 0.4f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.4f, 0.2f }, {} },
+		{ { 0.6f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.6f, 0.2f }, {} },
+		{ { 0.8f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.8f, 0.2f }, {} },
+		{ { 1.0f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 1.0f, 0.2f }, {} },
+
+		{ { 0.0f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.0f, 0.4f }, {} },
+		{ { 0.2f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.2f, 0.4f }, {} },
+		{ { 0.4f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.4f, 0.4f }, {} },
+		{ { 0.6f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.6f, 0.4f }, {} },
+		{ { 0.8f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.8f, 0.4f }, {} },
+		{ { 1.0f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 1.0f, 0.4f }, {} },
+
+		{ { 0.0f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.0f, 0.6f }, {} },
+		{ { 0.2f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.2f, 0.6f }, {} },
+		{ { 0.4f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.4f, 0.6f }, {} },
+		{ { 0.6f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.6f, 0.6f }, {} },
+		{ { 0.8f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.8f, 0.6f }, {} },
+		{ { 1.0f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 1.0f, 0.6f }, {} },
+	};
+	unsigned int gridIndices[216] = {
+		7, 1, 0, 6, 7, 0,
+		8, 2, 1, 7, 8, 1,
+		9, 3, 2, 8, 9, 2,
+		10, 4, 3, 9, 10, 3,
+		11, 5, 4, 10, 11, 4,
+
+		13, 7, 6, 12, 13, 6,
+		14, 8, 7, 13, 14, 7,
+		15, 9, 8, 14, 15, 8,
+		16, 10, 9, 15, 16, 9,
+		17, 11, 10, 13, 17, 10,
+
+		19, 13, 12, 18, 19, 12,
+		20, 14, 13, 19, 20, 13,
+		21, 15, 14, 20, 21, 14,
+		22, 16, 15, 21, 22, 15,
+		23, 17, 16, 22, 23, 16,
+	};
 
 	mesh gridMesh = CreateMeshIndexed(wnd.device, gridVerts, gridVertCount, gridIndices, gridIndexCount, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	*/
+
+	ID3D11VertexShader *sineShader;
+	wnd.device->CreateVertexShader(VSSineShader, ARRAYSIZE(VSSineShader), NULL, &sineShader);
+
+	model grid = {};
+	grid.mesh = &gridMesh;
+	grid.pixelShader = pixelShader;
+	grid.vertexShader = sineShader;
+	XMStoreFloat4x4(&grid.transform, XMMatrixTranspose(XMMatrixScaling(10.0f, 1.0f, 10.0f)));
+	grid.transformBuffer = objectConstBuffer;
 
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)
@@ -781,6 +830,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 		defaultCamera.viewMatrix = viewMatrix;
 		defaultCamera.projectionMatrix = projectionMatrix;
+		defaultCamera.totalTime = (float)timer.TotalTime();
 
 		D3D11_MAPPED_SUBRESOURCE msr;
 		wnd.context->Map(cameraConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
@@ -804,6 +854,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		// Render each mesh
 		RenderModel(&cube, wnd.context);
 		RenderModel(&stonehenge, wnd.context);
+		RenderModel(&grid, wnd.context);
 
 		timeFloats.x = (float)timer.TotalTime();
 		wnd.context->Map(timeConstBuffer, 0, D3D11_MAP_WRITE_DISCARD, NULL, &msr);
@@ -823,6 +874,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	FreeModel(&spiral);
 	FreeModel(&stonehenge);
 
+	FreeMesh(&gridMesh);
 	FreeMesh(&cubeMesh);
 	FreeMesh(&skyboxMesh);
 	FreeMesh(&spiralMesh);
@@ -848,6 +900,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	SAFE_RELEASE(pixelShaderBlank);
 	SAFE_RELEASE(pixelShader);
 	SAFE_RELEASE(skyboxPixelShader);
+	SAFE_RELEASE(sineShader);
 
 	ShutDown(&wnd);
 

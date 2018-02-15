@@ -8,4 +8,6 @@ struct SHADER_CAMERA
 {
 	XMFLOAT4X4 viewMatrix;
 	XMFLOAT4X4 projectionMatrix;
+	float totalTime;
+	XMFLOAT3 padding;
 };

@@ -44,6 +44,9 @@
     <FxCompile Include="SkyboxPS.hlsl">
       <Filter>Resource Files</Filter>
     </FxCompile>
+    <FxCompile Include="VSSineShader.hlsl">
+      <Filter>Resource Files</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="XTime.h">

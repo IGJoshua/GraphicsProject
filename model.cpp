@@ -44,6 +44,8 @@ void RenderModel(model *m, ID3D11DeviceContext *context)
 	}
 	if (m->textureSampler)
 		context->PSSetSamplers(0, 1, &m->textureSampler);
+	if (m->reflectionMapSampler)
+		context->PSSetSamplers(1, 1, &m->reflectionMapSampler);
 
 	D3D11_MAPPED_SUBRESOURCE msr;
 	context->Map(m->transformBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
@@ -59,8 +61,8 @@ void RenderModel(model *m, ID3D11DeviceContext *context)
 
 	ID3D11Buffer *cb = NULL;
 	context->VSSetConstantBuffers(1, 1, &cb);
-	ID3D11SamplerState *ss = NULL;
-	context->PSSetSamplers(0, 1, &ss);
+	ID3D11SamplerState *ss[2] = { NULL, NULL };
+	context->PSSetSamplers(0, 2, ss);
 
 	context->VSSetShader(NULL, NULL, NULL);
 	context->PSSetShader(NULL, NULL, NULL);

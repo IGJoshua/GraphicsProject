@@ -19,7 +19,8 @@
 ** High Priority
 *** TODO Geometry Instancing PT: 4-3
 *** TODO Shader-based Billboards PT: 4-3
-*** TODO Sinewave-based moving item PT: 3-2
+*** DONE Sinewave-based moving item PT: 3-2
+    CLOSED: [2018-02-14 Wed 23:47]
 *** DONE Cubemap Reflection  PT: 3-2
     CLOSED: [2018-02-14 Wed 23:02]
 ** Medium Priority
