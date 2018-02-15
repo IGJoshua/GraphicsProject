@@ -20,7 +20,8 @@
 *** TODO Geometry Instancing PT: 4-3
 *** TODO Shader-based Billboards PT: 4-3
 *** TODO Sinewave-based moving item PT: 3-2
-*** TODO Cubemap Reflection  PT: 3-2
+*** DONE Cubemap Reflection  PT: 3-2
+    CLOSED: [2018-02-14 Wed 23:02]
 ** Medium Priority
 *** TODO Shadow Mapping
 *** TODO Normal Mapping
@@ -45,6 +46,8 @@
     CLOSED: [2018-02-08 Thu 15:21]
 *** DONE Specular lights 2pt
     CLOSED: [2018-02-08 Thu 17:26]
-*** TODO Multitexturing 2pt
-*** TODO Skybox 3pt
+*** DONE Multitexturing 2pt
+    CLOSED: [2018-02-10 Sat 17:00]
+*** DONE Skybox 3pt
+    CLOSED: [2018-02-10 Sat 19:03]
 * Milestone III

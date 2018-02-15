@@ -15,6 +15,19 @@ struct SPOT_LIGHT
 	float2 padding;
 };
 
+cbuffer LIGHTS : register( b0 )
+{
+	POINT_LIGHT pointLights[16];
+	SPOT_LIGHT spotLights[4];
+
+	float4 directionalLightNormal;
+	float4 directionalLightColor;
+
+	float4 ambientLightColor;
+
+	float4 cameraWorldPos;
+}
+
 float4 CalculatePointLight(POINT_LIGHT pl, float4 fragmentPosition, float4 surfaceNormal)
 {
 	float4 lightColor = (float4)0;

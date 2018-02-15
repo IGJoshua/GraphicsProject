@@ -171,6 +171,7 @@
     </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mesh.cpp" />
     <ClCompile Include="model.cpp" />
@@ -178,6 +179,12 @@
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="psBlank.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="SkyboxPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
@@ -198,6 +205,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.h" />
+    <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="defines.h" />
     <ClInclude Include="greendragon.h" />
     <ClInclude Include="lights.h" />
@@ -206,8 +214,11 @@
     <ClInclude Include="resource_loading.h" />
     <ClInclude Include="scene.h" />
     <ClInclude Include="StoneHenge.h" />
+    <ClInclude Include="StoneHengeNormal.h" />
+    <ClInclude Include="StoneHengeSpecular.h" />
     <ClInclude Include="StoneHenge_Texture.h" />
     <ClInclude Include="test pyramid.h" />
+    <ClInclude Include="TrollFace.h" />
     <ClInclude Include="XTime.h" />
   </ItemGroup>
   <ItemGroup>

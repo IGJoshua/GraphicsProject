@@ -14,6 +14,9 @@ using namespace std;
 #include "StoneHengeSpecular.h"
 #include "StoneHenge.h"
 
+#include "TrollFace.h"
+
+#include "DDSTextureLoader.h"
 #include "scene.h"
 #include "camera.h"
 #include "model.h"
@@ -23,6 +26,7 @@ using namespace std;
 #include "Trivial_PS.csh"
 
 #include "psBlank.csh"
+#include "SkyboxPS.csh"
 
 //************************************************************
 //************ SIMPLE WINDOWS APP CLASS **********************
@@ -321,6 +325,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	mesh cubeMesh = CreateMeshIndexed(wnd.device, cubeVerts, 24, cubeIndices, 36, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+	unsigned int skyboxIndices[] = {
+		2, 1, 0,  0, 3, 2, // Front face
+		6, 5, 4,  4, 7, 6, // Back face
+		10, 9, 8, 8, 11, 10, // Left face
+		14, 13, 12, 12, 15, 14, // Right face
+		18, 17, 16, 16, 19, 18, // Top face
+		22, 21, 20, 20, 23, 22 // Bottom face
+	};
+
+	mesh skyboxMesh = CreateMeshIndexed(wnd.device, cubeVerts, 24, skyboxIndices, 36, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 	D3D11_SAMPLER_DESC sampDesc;
 	ZeroMemory(&sampDesc, sizeof(sampDesc));
 	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -365,6 +380,36 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	delete[] greendragon_converted;
 
+	// Load the trollface texture
+	ZeroMemory(&texDesc, sizeof(texDesc));
+	texDesc.Width = TrollFace_width;
+	texDesc.Height = TrollFace_height;
+	texDesc.MipLevels = TrollFace_numlevels;
+	texDesc.ArraySize = 1;
+	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.Usage = D3D11_USAGE_IMMUTABLE;
+	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+	// Convert the texture
+	unsigned int *TrollFace_converted = new unsigned int[TrollFace_numpixels];
+	for (unsigned int i = 0; i < TrollFace_numpixels; ++i)
+	{
+		TrollFace_converted[i] = colorTGAConversion(TrollFace_pixels[i]);
+	}
+
+	for (int i = 0; i < 10; ++i)
+	{
+		ZeroMemory(&srd[i], sizeof(srd[i]));
+		srd[i].pSysMem = TrollFace_converted + TrollFace_leveloffsets[i];
+		srd[i].SysMemPitch = (UINT)(TrollFace_width >> i) * sizeof(unsigned int);
+	}
+
+	ID3D11Texture2D *trollfaceTexture;
+	wnd.device->CreateTexture2D(&texDesc, srd, &trollfaceTexture);
+
+	delete[] TrollFace_converted;
+
 	ID3D11PixelShader *pixelShader;
 	wnd.device->CreatePixelShader(Trivial_PS, ARRAYSIZE(Trivial_PS), NULL, &pixelShader);
 
@@ -374,8 +419,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	cube.pixelShader = pixelShader;
 	cube.textureSampler = dragonSamplerState;
 
-	ID3D11Texture2D *textures[4] = {};
+	ID3D11Texture2D *textures[5] = {};
 	textures[0] = dragonTexture;
+	textures[1] = trollfaceTexture;
 	CreateTextureResourceViews(wnd.device, &cube, textures);
 
 	XMFLOAT4X4 cubeWorldMatrix;
@@ -554,10 +600,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	// ===============================
 	// Shader Resource View
-	textures[0] = NULL;
+	ID3D11Texture2D *skyboxTexture;
+	ID3D11ShaderResourceView *skyboxSRV;
+	CreateDDSTextureFromFile(wnd.device, L"Skybox.dds", (ID3D11Resource**)&skyboxTexture, &skyboxSRV);
+
+	for (int i = 0; i < 4; ++i)
+		textures[i] = NULL;
 
 	textures[0] = stonehengeTexture;
 	textures[3] = stonehengeSpecularMap;
+	textures[4] = skyboxTexture;
 
 	model stonehenge = {};
 	stonehenge.mesh = &stonehengeMesh;
@@ -568,12 +620,62 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	CreateTextureResourceViews(wnd.device, &stonehenge, textures);
 
+	SAFE_RELEASE(stonehenge.shaderResourceViews[4]);
+	stonehenge.shaderResourceViews[4] = skyboxSRV;
+
 	// =======================================
 	// Set standard const buffer locations
 
 	spiral.transformBuffer = objectConstBuffer;
 	cube.transformBuffer = objectConstBuffer;
 	stonehenge.transformBuffer = objectConstBuffer;
+
+	// ========================================
+	// Set up skybox
+
+	model skybox = {};
+	skybox.mesh = &skyboxMesh;
+
+	ID3D11PixelShader *skyboxPixelShader;
+	wnd.device->CreatePixelShader(SkyboxPS, ARRAYSIZE(SkyboxPS), NULL, &skyboxPixelShader);
+
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	sampDesc.MinLOD = 0;
+	skyboxTexture->GetDesc(&texDesc);
+	sampDesc.MaxLOD = (float)texDesc.MipLevels;
+
+	ID3D11SamplerState *skyboxSamplerState;
+	wnd.device->CreateSamplerState(&sampDesc, &skyboxSamplerState);
+
+	skybox.pixelShader = skyboxPixelShader;
+	skybox.shaderResourceViews[0] = skyboxSRV;
+	skybox.vertexShader = vertShader;
+	skybox.textureSampler = skyboxSamplerState;
+	XMStoreFloat4x4(&skybox.transform, XMMatrixTranspose(XMMatrixTranslationFromVector(XMLoadFloat4(&viewCamera.position))));
+	skybox.transformBuffer = objectConstBuffer;
+
+	// =======================================
+	// Grid to undulate
+	/*
+	unsigned int gridWidth = 10;
+	unsigned int gridHeight = 10;
+	unsigned int gridVertCount = gridWidth * gridHeight;
+	unsigned int gridIndexCount = gridVertCount / 4 * 6;
+	unsigned int *gridIndices = new unsigned int[gridIndexCount];
+	for (unsigned int y = 0; y < gridHeight; ++y)
+	{
+		for (unsigned int x = 0; x < gridWidth; ++x)
+		{
+			// Make a vertex
+		}
+	}
+
+	mesh gridMesh = CreateMeshIndexed(wnd.device, gridVerts, gridVertCount, gridIndices, gridIndexCount, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	*/
 
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)
@@ -693,6 +795,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 		wnd.context->PSSetConstantBuffers(0, 1, &lightsConstBuffer);
 
+		// Render skybox
+		XMStoreFloat4x4(&skybox.transform, XMMatrixTranspose(XMMatrixTranslationFromVector(XMLoadFloat4(&viewCamera.position))));
+		RenderModel(&skybox, wnd.context);
+
+		wnd.context->ClearDepthStencilView(wnd.depthStencilView, D3D11_CLEAR_DEPTH, 1, 0);
+
 		// Render each mesh
 		RenderModel(&cube, wnd.context);
 		RenderModel(&stonehenge, wnd.context);
@@ -716,6 +824,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	FreeModel(&stonehenge);
 
 	FreeMesh(&cubeMesh);
+	FreeMesh(&skyboxMesh);
 	FreeMesh(&spiralMesh);
 	FreeMesh(&stonehengeMesh);
 
@@ -725,15 +834,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	SAFE_RELEASE(timeConstBuffer);
 
 	SAFE_RELEASE(cube.textureSampler);
-	SAFE_RELEASE(dragonTexture);
-
 	SAFE_RELEASE(stonehenge.textureSampler);
+	SAFE_RELEASE(skybox.textureSampler);
+
+	SAFE_RELEASE(skyboxTexture);
+
 	SAFE_RELEASE(stonehengeTexture);
 	SAFE_RELEASE(stonehengeSpecularMap);
+	SAFE_RELEASE(dragonTexture);
+	SAFE_RELEASE(trollfaceTexture);
 
 	SAFE_RELEASE(vertShader);
 	SAFE_RELEASE(pixelShaderBlank);
 	SAFE_RELEASE(pixelShader);
+	SAFE_RELEASE(skyboxPixelShader);
 
 	ShutDown(&wnd);
 

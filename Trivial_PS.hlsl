@@ -1,31 +1,22 @@
 #include "Functions.hlsli"
 
-cbuffer LIGHTS : register( b0 )
-{
-	POINT_LIGHT pointLights[16];
-	SPOT_LIGHT spotLights[4];
-
-	float4 directionalLightNormal;
-	float4 directionalLightColor;
-
-	float4 ambientLightColor;
-
-	float4 cameraWorldPos;
-}
-
 texture2D albedoMap : register( t0 );
 texture2D albedoMap2 : register( t1 );
 texture2D normalMap : register( t2 );
 texture2D specularMap : register( t3 );
+textureCUBE reflectionMap : register( t4 );
 
 SamplerState MeshTextureSampler : register( s0 );
+SamplerState ReflectionTextureSampler : register( s1 );
 
 float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : NORMAL, float4 worldPosition : POSITION, float2 uvFromRasterizer : TEXCOORD ) : SV_TARGET
 {
 	float4 returnColor = (float4)0;
 
 	// Calculate the texture color for the pixel coord
-	float4 albedoColor = albedoMap.Sample(MeshTextureSampler, uvFromRasterizer) + albedoMap2.Sample(MeshTextureSampler, uvFromRasterizer);
+	float4 sample1 = albedoMap.Sample(MeshTextureSampler, uvFromRasterizer);
+	float4 sample2 = albedoMap2.Sample(MeshTextureSampler, uvFromRasterizer);
+	float4 albedoColor = lerp(sample1, sample2, sample2.w);
 	albedoColor = lerp(colorFromRasterizer, albedoColor, albedoColor.w);
 
 	// Calculate light for the pixel coord
@@ -54,7 +45,10 @@ float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : N
 	specularColor += CalculateSpecularLight(pointDirection, float4(pointLights[0].lightColor, 1.0), worldPosition, normalFromRasterizer, cameraWorldPos);
 	specularColor *= specularMap.Sample(MeshTextureSampler, uvFromRasterizer);
 
-	returnColor = lambertColor + specularColor;
+	float4 reflectionColor = float4(reflectionMap.Sample(ReflectionTextureSampler, reflect(worldPosition - cameraWorldPos, normalFromRasterizer).xyz).xyz, 1.0)
+		* specularMap.Sample(MeshTextureSampler, uvFromRasterizer);
+
+	returnColor = lambertColor + specularColor + reflectionColor;
 
 	return saturate(returnColor);
 }
