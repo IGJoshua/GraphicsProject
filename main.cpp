@@ -112,7 +112,8 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 	swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 	wnd.swpFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 	swapchainDesc.OutputWindow = wnd.window;
-	swapchainDesc.SampleDesc.Count = 1;
+	swapchainDesc.SampleDesc.Count = 4;
+	swapchainDesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
 	swapchainDesc.Windowed = true;
 
 	D3D11CreateDeviceAndSwapChain(NULL,
@@ -153,8 +154,8 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 	dsTexDesc.MipLevels = 1;
 	dsTexDesc.ArraySize = 1;
 	dsTexDesc.Format = DXGI_FORMAT_D32_FLOAT;
-	dsTexDesc.SampleDesc.Count = 1;
-	dsTexDesc.SampleDesc.Quality = 0;
+	dsTexDesc.SampleDesc.Count = 4;
+	dsTexDesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
 	dsTexDesc.Usage = D3D11_USAGE_DEFAULT;
 	dsTexDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 
@@ -173,7 +174,7 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 	D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 	ZeroMemory(&dsvDesc, sizeof(dsvDesc));
 	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
-	dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
 	dsvDesc.Texture2D.MipSlice = 0;
 
 	wnd.device->CreateDepthStencilView(wnd.depthStencil, &dsvDesc, &wnd.depthStencilView);
@@ -266,7 +267,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	mesh spiralMesh = CreateMesh(wnd.device, spiralVerts, spiralVertCount, D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
 	XMFLOAT4X4 spiralWorldMatrix;
-	XMStoreFloat4x4(&spiralWorldMatrix, XMMatrixIdentity());
+	XMStoreFloat4x4(&spiralWorldMatrix, XMMatrixMultiplyTranspose(XMMatrixRotationX(XMConvertToRadians(-90)), XMMatrixMultiply(XMMatrixScaling(30, 1, 30), XMMatrixTranslation(-2.3f, -1.7f, 0.9f))));
 
 	ID3D11PixelShader *pixelShaderBlank;
 	wnd.device->CreatePixelShader(psBlank, ARRAYSIZE(psBlank), NULL, &pixelShaderBlank);
@@ -477,7 +478,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	// Define lights
 
 	lights lightsToVRAM = {};
-	lightsToVRAM.ambientLightColor = { 0.025f, 0.01f, 0.1f, 1.0f };
+	lightsToVRAM.ambientLightColor = { 0.2f, 0.1f, 0.4f, 1.0f };
 	lightsToVRAM.directionalLightColor = { 0.4f, 0.4f, 0.39f, 1.0f };
 	lightsToVRAM.directionalLightNormal = { 1.0f, -1.0f, 0.5f, 0.0f };
 
@@ -661,60 +662,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	// =======================================
 	// Grid to undulate
-	unsigned int gridWidth = 5;
-	unsigned int gridHeight = 3;
-	unsigned int gridVertCount = (gridWidth + 1) * (gridHeight + 1);
-	unsigned int gridIndexCount = gridWidth * gridHeight * 6;
-	SIMPLE_VERTEX gridVerts[] = {
-		{ { 0.0f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.0f, 0.0f }, {} },
-		{ { 0.2f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.2f, 0.0f }, {} },
-		{ { 0.4f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.4f, 0.0f }, {} },
-		{ { 0.6f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.6f, 0.0f }, {} },
-		{ { 0.8f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.8f, 0.0f }, {} },
-		{ { 1.0f, 0, 0.0f, 1.0f }, { 0, 1, 0, 0 }, white, { 1.0f, 0.0f }, {} },
-
-		{ { 0.0f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.0f, 0.2f }, {} },
-		{ { 0.2f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.2f, 0.2f }, {} },
-		{ { 0.4f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.4f, 0.2f }, {} },
-		{ { 0.6f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.6f, 0.2f }, {} },
-		{ { 0.8f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.8f, 0.2f }, {} },
-		{ { 1.0f, 0, 0.2f, 1.0f }, { 0, 1, 0, 0 }, white, { 1.0f, 0.2f }, {} },
-
-		{ { 0.0f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.0f, 0.4f }, {} },
-		{ { 0.2f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.2f, 0.4f }, {} },
-		{ { 0.4f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.4f, 0.4f }, {} },
-		{ { 0.6f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.6f, 0.4f }, {} },
-		{ { 0.8f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.8f, 0.4f }, {} },
-		{ { 1.0f, 0, 0.4f, 1.0f }, { 0, 1, 0, 0 }, white, { 1.0f, 0.4f }, {} },
-
-		{ { 0.0f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.0f, 0.6f }, {} },
-		{ { 0.2f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.2f, 0.6f }, {} },
-		{ { 0.4f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.4f, 0.6f }, {} },
-		{ { 0.6f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.6f, 0.6f }, {} },
-		{ { 0.8f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 0.8f, 0.6f }, {} },
-		{ { 1.0f, 0, 0.6f, 1.0f }, { 0, 1, 0, 0 }, white, { 1.0f, 0.6f }, {} },
-	};
-	unsigned int gridIndices[216] = {
-		7, 1, 0, 6, 7, 0,
-		8, 2, 1, 7, 8, 1,
-		9, 3, 2, 8, 9, 2,
-		10, 4, 3, 9, 10, 3,
-		11, 5, 4, 10, 11, 4,
-
-		13, 7, 6, 12, 13, 6,
-		14, 8, 7, 13, 14, 7,
-		15, 9, 8, 14, 15, 8,
-		16, 10, 9, 15, 16, 9,
-		17, 11, 10, 13, 17, 10,
-
-		19, 13, 12, 18, 19, 12,
-		20, 14, 13, 19, 20, 13,
-		21, 15, 14, 20, 21, 14,
-		22, 16, 15, 21, 22, 15,
-		23, 17, 16, 22, 23, 16,
-	};
-
-	mesh gridMesh = CreateMeshIndexed(wnd.device, gridVerts, gridVertCount, gridIndices, gridIndexCount, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	mesh gridMesh = LoadMesh(wnd.device, "./grid.obj");
 
 	ID3D11VertexShader *sineShader;
 	wnd.device->CreateVertexShader(VSSineShader, ARRAYSIZE(VSSineShader), NULL, &sineShader);
@@ -723,8 +671,62 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	grid.mesh = &gridMesh;
 	grid.pixelShader = pixelShader;
 	grid.vertexShader = sineShader;
-	XMStoreFloat4x4(&grid.transform, XMMatrixTranspose(XMMatrixScaling(10.0f, 1.0f, 10.0f)));
+	XMStoreFloat4x4(&grid.transform, XMMatrixMultiplyTranspose(XMMatrixTranslation(0, -5, 0), XMMatrixScaling(300.0f, 1.0f, 300.0f)));
 	grid.transformBuffer = objectConstBuffer;
+
+	ID3D11Texture2D *whiteTexture;
+	ID3D11ShaderResourceView *whiteSRV;
+	CreateDDSTextureFromFile(wnd.device, L"white.dds", (ID3D11Resource**)&whiteTexture, &whiteSRV);
+
+	ID3D11Texture2D *waterTexture;
+	ID3D11ShaderResourceView *waterSRV;
+	CreateDDSTextureFromFile(wnd.device, L"water.dds", (ID3D11Resource**)&waterTexture, &waterSRV);
+
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	sampDesc.MinLOD = 0;
+	waterTexture->GetDesc(&texDesc);
+	sampDesc.MaxLOD = (float)texDesc.MipLevels;
+
+	ID3D11SamplerState *waterSamplerState;
+	wnd.device->CreateSamplerState(&sampDesc, &waterSamplerState);
+
+	grid.shaderResourceViews[1] = waterSRV;
+	grid.shaderResourceViews[3] = whiteSRV;
+
+	grid.shaderResourceViews[4] = skyboxSRV;
+	grid.reflectionMapSampler = skyboxSamplerState;
+
+	mesh plamTrehMesh = LoadMesh(wnd.device, "./plamtreh.obj");
+	model plamTreh = { 0 };
+	plamTreh.mesh = &plamTrehMesh;
+	plamTreh.vertexShader = vertShader;
+	plamTreh.pixelShader = pixelShader;
+	XMStoreFloat4x4(&plamTreh.transform, XMMatrixTranspose(XMMatrixTranslation(2.3f, -1.7f, 0.9f)));
+	plamTreh.transformBuffer = objectConstBuffer;
+
+	ID3D11Texture2D *plamTrehTexture;
+	ID3D11ShaderResourceView *plamTrehSRV;
+	CreateDDSTextureFromFile(wnd.device, L"PVP_PalmTree_Texture.dds", (ID3D11Resource**)&plamTrehTexture, &plamTrehSRV);
+
+	plamTreh.shaderResourceViews[0] = plamTrehSRV;
+
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	sampDesc.MinLOD = 0;
+	plamTrehTexture->GetDesc(&texDesc);
+	sampDesc.MaxLOD = (float)texDesc.MipLevels;
+
+	ID3D11SamplerState *plamTrehSamplerState;
+	wnd.device->CreateSamplerState(&sampDesc, &plamTrehSamplerState);
+
+	plamTreh.textureSampler = plamTrehSamplerState;
 
 	MSG msg; ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)
@@ -852,6 +854,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 		wnd.context->ClearDepthStencilView(wnd.depthStencilView, D3D11_CLEAR_DEPTH, 1, 0);
 
 		// Render each mesh
+		RenderModel(&plamTreh, wnd.context);
 		RenderModel(&cube, wnd.context);
 		RenderModel(&stonehenge, wnd.context);
 		RenderModel(&grid, wnd.context);
@@ -879,6 +882,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	FreeMesh(&skyboxMesh);
 	FreeMesh(&spiralMesh);
 	FreeMesh(&stonehengeMesh);
+	FreeMesh(&plamTrehMesh);
 
 	SAFE_RELEASE(lightsConstBuffer);
 	SAFE_RELEASE(cameraConstBuffer);
@@ -888,13 +892,21 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	SAFE_RELEASE(cube.textureSampler);
 	SAFE_RELEASE(stonehenge.textureSampler);
 	SAFE_RELEASE(skybox.textureSampler);
+	SAFE_RELEASE(plamTreh.textureSampler);
+	SAFE_RELEASE(waterSamplerState);
+
+	SAFE_RELEASE(plamTrehSRV);
+	SAFE_RELEASE(whiteSRV);
+	SAFE_RELEASE(waterSRV);
 
 	SAFE_RELEASE(skyboxTexture);
-
+	SAFE_RELEASE(plamTrehTexture);
 	SAFE_RELEASE(stonehengeTexture);
 	SAFE_RELEASE(stonehengeSpecularMap);
 	SAFE_RELEASE(dragonTexture);
 	SAFE_RELEASE(trollfaceTexture);
+	SAFE_RELEASE(whiteTexture);
+	SAFE_RELEASE(waterTexture);
 
 	SAFE_RELEASE(vertShader);
 	SAFE_RELEASE(pixelShaderBlank);
@@ -959,8 +971,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		dsTexDesc.MipLevels = 1;
 		dsTexDesc.ArraySize = 1;
 		dsTexDesc.Format = DXGI_FORMAT_D32_FLOAT;
-		dsTexDesc.SampleDesc.Count = 1;
-		dsTexDesc.SampleDesc.Quality = 0;
+		dsTexDesc.SampleDesc.Count = 4;
+		dsTexDesc.SampleDesc.Quality = D3D11_STANDARD_MULTISAMPLE_PATTERN;
 		dsTexDesc.Usage = D3D11_USAGE_DEFAULT;
 		dsTexDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 
@@ -977,7 +989,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 		ZeroMemory(&dsvDesc, sizeof(dsvDesc));
 		dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
-		dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+		dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
 		dsvDesc.Texture2D.MipSlice = 0;
 
 		wnd.device->CreateDepthStencilView(wnd.depthStencil, &dsvDesc, &wnd.depthStencilView);
