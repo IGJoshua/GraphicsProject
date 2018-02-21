@@ -27,7 +27,8 @@
 *** TODO Shadow Mapping
 *** TODO Normal Mapping
 *** TODO Use a Stencil Buffer
-*** TODO Indexed model loading (OBJ Loader)
+*** DONE Indexed model loading (OBJ Loader)
+    CLOSED: [2018-02-21 Wed 16:43]
 *** TODO Render to Texture
 *** Multiple viewports
 *** Hardware tesselation
@@ -52,3 +53,6 @@
 *** DONE Skybox 3pt
     CLOSED: [2018-02-10 Sat 19:03]
 * Milestone III
+** DONE 4x MSAA
+   CLOSED: [2018-02-20 Tue 13:40]
+** 

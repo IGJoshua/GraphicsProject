@@ -138,6 +138,7 @@ D3D11Window InitApp(HINSTANCE hinst, WNDPROC proc, unsigned int width, unsigned 
 
 	D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
 	{
+		// Per-vertex information
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -431,6 +432,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 
 	cube.transform = cubeWorldMatrix;
 
+	ID3D11Texture2D *blueTexture;
+	ID3D11ShaderResourceView *blueSRV;
+	CreateDDSTextureFromFile(wnd.device, L"blue.dds", (ID3D11Resource**)&blueTexture, &blueSRV);
+
+	cube.shaderResourceViews[2] = blueSRV;
+
 	// Define the camera
 	camera viewCamera;
 	viewCamera.position = { 0, 5, -5, 1 };
@@ -606,6 +613,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	ID3D11ShaderResourceView *skyboxSRV;
 	CreateDDSTextureFromFile(wnd.device, L"Skybox.dds", (ID3D11Resource**)&skyboxTexture, &skyboxSRV);
 
+	ID3D11Texture2D *stonehengeNormalTexture;
+	ID3D11ShaderResourceView *stonehengeNormalSRV;
+	CreateDDSTextureFromFile(wnd.device, L"StoneHengeNormal.dds", (ID3D11Resource**)&stonehengeNormalTexture, &stonehengeNormalSRV);
+
 	for (int i = 0; i < 4; ++i)
 		textures[i] = NULL;
 
@@ -623,6 +634,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	CreateTextureResourceViews(wnd.device, &stonehenge, textures);
 
 	SAFE_RELEASE(stonehenge.shaderResourceViews[4]);
+	stonehenge.shaderResourceViews[2] = stonehengeNormalSRV;
 	stonehenge.shaderResourceViews[4] = skyboxSRV;
 
 	// =======================================
@@ -695,6 +707,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	wnd.device->CreateSamplerState(&sampDesc, &waterSamplerState);
 
 	grid.shaderResourceViews[1] = waterSRV;
+	grid.shaderResourceViews[2] = blueSRV;
 	grid.shaderResourceViews[3] = whiteSRV;
 
 	grid.shaderResourceViews[4] = skyboxSRV;
@@ -713,6 +726,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	CreateDDSTextureFromFile(wnd.device, L"PVP_PalmTree_Texture.dds", (ID3D11Resource**)&plamTrehTexture, &plamTrehSRV);
 
 	plamTreh.shaderResourceViews[0] = plamTrehSRV;
+	plamTreh.shaderResourceViews[2] = blueSRV;
 
 	ZeroMemory(&sampDesc, sizeof(sampDesc));
 	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -903,9 +917,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPTSTR, int)
 	SAFE_RELEASE(plamTrehTexture);
 	SAFE_RELEASE(stonehengeTexture);
 	SAFE_RELEASE(stonehengeSpecularMap);
+	SAFE_RELEASE(stonehengeNormalTexture);
 	SAFE_RELEASE(dragonTexture);
 	SAFE_RELEASE(trollfaceTexture);
 	SAFE_RELEASE(whiteTexture);
+	SAFE_RELEASE(blueTexture);
 	SAFE_RELEASE(waterTexture);
 
 	SAFE_RELEASE(vertShader);

@@ -9,7 +9,7 @@ textureCUBE reflectionMap : register( t4 );
 SamplerState MeshTextureSampler : register( s0 );
 SamplerState ReflectionTextureSampler : register( s1 );
 
-float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : NORMAL, float4 worldPosition : POSITION, float2 uvFromRasterizer : TEXCOORD ) : SV_TARGET
+float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : NORMAL, float4 worldPosition : POSITION, float2 uvFromRasterizer : TEXCOORD, float4 localPosition : LOCAL_POSITION, float3x3 tbn : TBN ) : SV_TARGET
 {
 	float4 returnColor = (float4)0;
 
@@ -22,6 +22,8 @@ float4 main( float4 colorFromRasterizer : COLOR, float4 normalFromRasterizer : N
 	// Calculate light for the pixel coord
 	float4 ambientLight = ambientLightColor * albedoColor;
 
+	// Fix the normal to take normal map into account
+	normalFromRasterizer = float4(mul((float3)normalMap.Sample(MeshTextureSampler, uvFromRasterizer), tbn), 0);
 
 	// Point light
 	float4 pointLightColor = CalculatePointLight(pointLights[0], worldPosition, normalFromRasterizer);
